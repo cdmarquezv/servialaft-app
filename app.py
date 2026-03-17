@@ -94,31 +94,71 @@ USUARIOS = {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# LISTAS VINCULANTES (DEMO EMBEBIDO)
+# LISTAS VINCULANTES — Lee JSON real si existe, si no usa demo
 # ─────────────────────────────────────────────────────────────────────────────
-LISTA_SDN = pd.DataFrame([
-    {"tipo_id":"CC",  "nro_id":"12345678",  "nombre":"JUAN CARLOS RODRIGUEZ GOMEZ",   "origen":"OFAC SDN",  "detalle":"NARCOTICS"},
-    {"tipo_id":"CC",  "nro_id":"87654321",  "nombre":"MARIA FERNANDA LOPEZ HERRERA",  "origen":"OFAC SDN",  "detalle":"TERRORISM"},
-    {"tipo_id":"CC",  "nro_id":"11223344",  "nombre":"CARLOS ANDRES PEREZ VILLA",     "origen":"OFAC SDN",  "detalle":"SDGT"},
-    {"tipo_id":"CC",  "nro_id":"55667788",  "nombre":"ANA LUCIA MARTINEZ CASTRO",     "origen":"OFAC SDN",  "detalle":"NARCOTICS"},
-    {"tipo_id":"NIT", "nro_id":"900123456", "nombre":"INVERSIONES DELTA SAS",          "origen":"OFAC SDN",  "detalle":"SDGT"},
-    {"tipo_id":"NIT", "nro_id":"800987654", "nombre":"COMERCIALIZADORA OMEGA LTDA",    "origen":"OFAC SDN",  "detalle":"NARCOTICS"},
-    {"tipo_id":"CC",  "nro_id":"44556677",  "nombre":"LUIS MIGUEL VARGAS OSPINA",     "origen":"ONU",       "detalle":"RES. 1267"},
-    {"tipo_id":"CC",  "nro_id":"99001122",  "nombre":"DIANA CAROLINA RESTREPO MESA",  "origen":"ONU",       "detalle":"RES. 1988"},
-    {"tipo_id":"NIT", "nro_id":"901111222", "nombre":"GRUPO FINANCIERO ANDINO SA",     "origen":"ONU",       "detalle":"RES. 1267"},
-])
+import json as _json
+import os as _os
 
-LISTA_PEPS = pd.DataFrame([
-    {"tipo_id":"CC",  "nro_id":"99887766",  "nombre":"PEDRO ANTONIO SUAREZ MORA",    "origen":"PEP",           "detalle":"Alcalde Municipal — Alcaldía de Bogotá"},
-    {"tipo_id":"CC",  "nro_id":"44332211",  "nombre":"SANDRA MILENA TORRES RUIZ",    "origen":"PEP",           "detalle":"Senadora de la República — Senado"},
-    {"tipo_id":"CC",  "nro_id":"66778899",  "nombre":"JORGE LUIS VARGAS MENDOZA",    "origen":"PEP",           "detalle":"Director General DIAN"},
-    {"tipo_id":"CC",  "nro_id":"33221100",  "nombre":"LUCIA ESPERANZA DIAZ PARRA",   "origen":"PEP",           "detalle":"Magistrada Corte Suprema de Justicia"},
-    {"tipo_id":"NIT", "nro_id":"901234567", "nombre":"FUNDACION PROGRESO Y PAZ",      "origen":"PEP",           "detalle":"Entidad sin ánimo de lucro"},
-    {"tipo_id":"CC",  "nro_id":"77665544",  "nombre":"ROBERTO CARLOS ARANGO SILVA",  "origen":"DECLARADO PEP", "detalle":"Ex-Gobernador — Gobernación Antioquia"},
-    {"tipo_id":"CC",  "nro_id":"22334455",  "nombre":"CLAUDIA VIVIANA MUNOZ REYES",  "origen":"DECLARADO PEP", "detalle":"Ex-Ministra de Salud"},
-])
+def cargar_listas():
+    """Carga listas reales desde JSON o usa datos demo como fallback."""
+    json_path = "listas_vinculantes.json"
 
-TODAS = pd.concat([LISTA_SDN, LISTA_PEPS], ignore_index=True)
+    if _os.path.exists(json_path):
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = _json.load(f)
+        registros = []
+        for r in data.get("registros", []):
+            nombre = r.get("nombre","")
+            lista  = r.get("lista","OFAC SDN")
+            prog   = ", ".join(r.get("programas",[])) or lista
+            # Entrada principal por nombre
+            registros.append({
+                "tipo_id": "N/A",
+                "nro_id":  "N/A",
+                "nombre":  nombre,
+                "origen":  lista,
+                "detalle": prog,
+            })
+            # Entradas adicionales por cada documento
+            for doc in r.get("documentos", []):
+                num = doc.get("numero","").strip()
+                if num and num != "N/A":
+                    registros.append({
+                        "tipo_id": doc.get("tipo","DOC"),
+                        "nro_id":  num,
+                        "nombre":  nombre,
+                        "origen":  lista,
+                        "detalle": prog,
+                    })
+            # Entradas por aliases
+            for aka in r.get("aka", []):
+                if aka:
+                    registros.append({
+                        "tipo_id": "N/A",
+                        "nro_id":  "N/A",
+                        "nombre":  aka,
+                        "origen":  lista,
+                        "detalle": f"{prog} (AKA)",
+                    })
+        meta = data.get("meta", {})
+        return pd.DataFrame(registros), True, meta
+    else:
+        # Fallback demo
+        demo = pd.concat([
+            pd.DataFrame([
+                {"tipo_id":"CC",  "nro_id":"12345678",  "nombre":"JUAN CARLOS RODRIGUEZ GOMEZ",  "origen":"OFAC SDN",      "detalle":"NARCOTICS"},
+                {"tipo_id":"CC",  "nro_id":"87654321",  "nombre":"MARIA FERNANDA LOPEZ HERRERA", "origen":"OFAC SDN",      "detalle":"TERRORISM"},
+                {"tipo_id":"CC",  "nro_id":"11223344",  "nombre":"CARLOS ANDRES PEREZ VILLA",    "origen":"OFAC SDN",      "detalle":"SDGT"},
+                {"tipo_id":"NIT", "nro_id":"900123456", "nombre":"INVERSIONES DELTA SAS",         "origen":"OFAC SDN",      "detalle":"SDGT"},
+                {"tipo_id":"CC",  "nro_id":"44556677",  "nombre":"LUIS MIGUEL VARGAS OSPINA",    "origen":"ONU",           "detalle":"RES. 1267"},
+                {"tipo_id":"CC",  "nro_id":"99887766",  "nombre":"PEDRO ANTONIO SUAREZ MORA",   "origen":"PEP",           "detalle":"Alcalde Municipal"},
+                {"tipo_id":"CC",  "nro_id":"44332211",  "nombre":"SANDRA MILENA TORRES RUIZ",   "origen":"PEP",           "detalle":"Senadora"},
+                {"tipo_id":"CC",  "nro_id":"77665544",  "nombre":"ROBERTO CARLOS ARANGO SILVA", "origen":"DECLARADO PEP", "detalle":"Ex-Gobernador"},
+            ])
+        ], ignore_index=True)
+        return demo, False, {}
+
+TODAS, LISTAS_REALES, LISTAS_META = cargar_listas()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # UTILIDADES
@@ -130,28 +170,68 @@ def norm(s):
 
 def buscar(tipo_id, nro_id, nombre, umbral):
     res = []
-    nombre_n = norm(nombre)
-    for _, row in TODAS.iterrows():
-        if row["tipo_id"] != tipo_id:
-            continue
-        doc_exacto  = str(row["nro_id"]) == str(nro_id)
-        doc_cercano = fuzz.ratio(str(row["nro_id"]), str(nro_id)) >= 85
-        sim = fuzz.token_sort_ratio(norm(str(row["nombre"])), nombre_n) / 100
+    nombre_n    = norm(nombre)
+    solo_doc    = bool(nro_id) and not nombre
+    solo_nombre = bool(nombre) and not nro_id
+    ambos       = bool(nro_id) and bool(nombre)
 
-        if doc_exacto and sim >= umbral:
-            nivel = "EXACTA"
-        elif doc_cercano and sim >= umbral:
-            nivel = "APROXIMADA"
-        elif sim >= umbral:
+    for _, row in TODAS.iterrows():
+        doc_exacto  = False
+        doc_cercano = False
+        sim         = 0.0
+
+        tiene_doc_lista = str(row.get("nro_id","N/A")) not in ("N/A","") \
+                          and str(row.get("tipo_id","N/A")) != "N/A"
+
+        # ── Búsqueda solo por documento ──────────────────────────────────────
+        if solo_doc:
+            if not tiene_doc_lista: continue
+            if row["tipo_id"] != tipo_id: continue
+            if str(row["nro_id"]) == str(nro_id):
+                nivel = "EXACTA"
+            elif fuzz.ratio(str(row["nro_id"]), str(nro_id)) >= 85:
+                nivel = "APROXIMADA"
+            else:
+                continue
+            sim = 100.0
+
+        # ── Búsqueda solo por nombre ─────────────────────────────────────────
+        elif solo_nombre:
+            sim = fuzz.token_sort_ratio(norm(str(row["nombre"])), nombre_n) / 100
+            if sim < umbral: continue
             nivel = "SOLO NOMBRE"
+
+        # ── Búsqueda por ambos ───────────────────────────────────────────────
         else:
-            continue
+            sim = fuzz.token_sort_ratio(norm(str(row["nombre"])), nombre_n) / 100
+            if tiene_doc_lista and row["tipo_id"] == tipo_id:
+                doc_exacto  = str(row["nro_id"]) == str(nro_id)
+                doc_cercano = fuzz.ratio(str(row["nro_id"]), str(nro_id)) >= 85
+
+            if doc_exacto and sim >= umbral:
+                nivel = "EXACTA"
+            elif doc_cercano and sim >= umbral:
+                nivel = "APROXIMADA"
+            elif sim >= umbral:
+                nivel = "SOLO NOMBRE"
+            else:
+                continue
 
         r = row.to_dict()
-        r["sim_%"] = round(sim * 100, 1)
+        r["sim_%"] = round(sim * 100, 1) if sim <= 1 else round(sim, 1)
         r["nivel"] = nivel
         res.append(r)
-    return pd.DataFrame(res) if res else pd.DataFrame()
+
+    # Deduplicar por nombre + origen
+    seen = set()
+    res_uniq = []
+    for r in res:
+        key = (r["nombre"], r["origen"])
+        if key not in seen:
+            seen.add(key)
+            res_uniq.append(r)
+
+    return pd.DataFrame(res_uniq) if res_uniq else pd.DataFrame()
 
 def log_q(modulo, tipo_id, nro_id, nombre, resultado):
     st.session_state.logs.append({
@@ -208,6 +288,7 @@ def pantalla_login():
 # ─────────────────────────────────────────────────────────────────────────────
 MENU_ITEMS = [
     "🌐  OFAC / ONU",
+    "📰  Noticias Adversas",
     "👮  Policía Nacional",
     "⚖️  Procuraduría",
     "📋  Registros consultados",
@@ -239,7 +320,13 @@ def sidebar():
 # ─────────────────────────────────────────────────────────────────────────────
 def mod_ofac():
     st.markdown("## 🌐 Consultar Listas Vinculantes — OFAC · ONU · PEPs")
-    st.caption(f"Fuentes: OFAC SDN · ONU Resoluciones · PEPs Colombia | Actualización: {date.today():%d/%m/%Y}")
+    if LISTAS_REALES:
+        fecha = LISTAS_META.get("fecha_actualizacion","—")
+        total = LISTAS_META.get("total", len(TODAS))
+        st.success(f"✅ Listas reales cargadas — **{total:,} registros** | Actualización: {fecha}")
+    else:
+        st.warning("⚠️ Usando datos de demo — sube `listas_vinculantes.json` al repo para activar datos reales.")
+    st.caption(f"Fuentes: OFAC SDN · ONU Resoluciones · PEPs Colombia")
 
     tab_ind, tab_mas = st.tabs(["🔎 Consulta individual", "📂 Carga masiva (Excel)"])
 
@@ -248,32 +335,45 @@ def mod_ofac():
         c1, c2 = st.columns([1, 2])
         with c1:
             tipo_id  = st.selectbox("Tipo ID", ["CC", "NIT", "CE", "PAS"])
-            nro_id   = st.text_input("Número de identificación")
-            nombre   = st.text_input("Nombre completo")
+            nro_id   = st.text_input("Número de identificación", placeholder="Opcional si ingresa nombre")
+            nombre   = st.text_input("Nombre completo", placeholder="Opcional si ingresa documento")
+            st.caption("💡 Puede buscar por nombre, por documento, o por ambos.")
             umbral   = st.slider("SimiliScore™ (%)", 50, 100, 85,
                                   help="Porcentaje mínimo de similitud para considerar coincidencia")
             consultar = st.button("🔍 Consultar", type="primary", use_container_width=True)
 
         with c2:
             if consultar:
-                if not nro_id.strip() or not nombre.strip():
-                    st.warning("Completa todos los campos.")
+                tiene_doc    = bool(nro_id.strip())
+                tiene_nombre = bool(nombre.strip())
+
+                if not tiene_doc and not tiene_nombre:
+                    st.warning("Ingresa al menos un número de identificación o un nombre.")
                 else:
-                    df = buscar(tipo_id, nro_id.strip(), nombre.strip(), umbral / 100)
+                    df = buscar(
+                        tipo_id,
+                        nro_id.strip() if tiene_doc else "",
+                        nombre.strip() if tiene_nombre else "",
+                        umbral / 100,
+                    )
+                    # Etiqueta para logs y PDF
+                    id_label  = nro_id.strip() if tiene_doc else "N/A"
+                    nom_label = nombre.strip() if tiene_nombre else "(búsqueda por documento)"
+
                     if df.empty:
                         st.success("✅ Sin coincidencias — no figura en listas vinculantes.")
-                        log_q("OFAC/ONU", tipo_id, nro_id, nombre, "NO ENCONTRADO")
+                        log_q("OFAC/ONU", tipo_id, id_label, nom_label, "NO ENCONTRADO")
                         if PDF_DISPONIBLE:
                             pdf_b = generar_pdf_individual(
-                                tipo_id, nro_id.strip(), nombre.strip(), None,
+                                tipo_id, id_label, nom_label, None,
                                 usuario=st.session_state.user)
                             st.download_button("📄 Certificado PDF (resultado limpio)",
                                                data=pdf_b,
-                                               file_name=f"certificado_{nro_id}_{date.today()}.pdf",
+                                               file_name=f"certificado_{id_label}_{date.today()}.pdf",
                                                mime="application/pdf")
                     else:
                         st.error(f"🚨 {len(df)} coincidencia(s) encontrada(s)")
-                        log_q("OFAC/ONU", tipo_id, nro_id, nombre, df["nivel"].iloc[0])
+                        log_q("OFAC/ONU", tipo_id, id_label, nom_label, df["nivel"].iloc[0])
                         for _, row in df.iterrows():
                             emoji = "🔴" if row["nivel"] == "EXACTA" else "🟡"
                             with st.expander(f"{emoji} {row['nombre']}  —  {row['origen']}", expanded=True):
@@ -292,8 +392,9 @@ def mod_ofac():
                                            use_container_width=True)
                         if PDF_DISPONIBLE:
                             pdf_b = generar_pdf_individual(
-                                tipo_id, nro_id.strip(), nombre.strip(), df,
+                                tipo_id, id_label, nom_label, df,
                                 usuario=st.session_state.user)
+
                             cy.download_button("📄 Certificado PDF",
                                                data=pdf_b,
                                                file_name=f"certificado_{nro_id}_{date.today()}.pdf",
@@ -581,6 +682,129 @@ def mod_stats():
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 # ─────────────────────────────────────────────────────────────────────────────
+# MÓDULO NOTICIAS ADVERSAS
+# ─────────────────────────────────────────────────────────────────────────────
+import urllib.parse as _uparse
+import xml.etree.ElementTree as _ET
+import urllib.request as _ureq
+
+PALABRAS_RIESGO = [
+    "lavado de activos", "narcotráfico", "corrupción", "fraude", "capturado",
+    "investigado", "condenado", "sancionado", "terrorismo", "extorsión",
+    "contrabando", "enriquecimiento ilícito", "peculado", "cohecho",
+    "money laundering", "fraud", "corruption", "arrested", "sanctioned",
+    "drug trafficking", "terrorism",
+]
+
+def buscar_noticias(nombre, pais="Colombia", max_noticias=10):
+    """Busca noticias adversas en Google News RSS."""
+    terminos_riesgo = " OR ".join([
+        "lavado", "narcotráfico", "corrupción", "fraude", "capturado",
+        "investigado", "condenado", "sancionado", "terrorismo"
+    ])
+    query = f'"{nombre}" ({terminos_riesgo})'
+    if pais:
+        query += f" {pais}"
+
+    url = f"https://news.google.com/rss/search?q={_uparse.quote(query)}&hl=es-419&gl=CO&ceid=CO:es-419"
+
+    try:
+        req = _ureq.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with _ureq.urlopen(req, timeout=10) as resp:
+            xml_data = resp.read()
+        root = _ET.fromstring(xml_data)
+        noticias = []
+        for item in root.findall(".//item")[:max_noticias]:
+            titulo  = item.findtext("title", "").strip()
+            link    = item.findtext("link", "").strip()
+            fecha   = item.findtext("pubDate", "").strip()
+            fuente  = item.findtext("source", "").strip()
+            if titulo:
+                # Detectar palabras de riesgo en el título
+                titulo_lower = titulo.lower()
+                riesgo = any(p in titulo_lower for p in PALABRAS_RIESGO)
+                noticias.append({
+                    "titulo":  titulo,
+                    "fuente":  fuente,
+                    "fecha":   fecha[:16] if fecha else "—",
+                    "link":    link,
+                    "riesgo":  riesgo,
+                })
+        return noticias, None
+    except Exception as e:
+        return [], str(e)
+
+def mod_noticias():
+    st.markdown("## 📰 Búsqueda de Noticias Adversas")
+    st.caption("Búsqueda automática en Google News — identifica noticias de riesgo asociadas al consultado")
+
+    c1, c2 = st.columns([1, 2])
+    with c1:
+        nombre   = st.text_input("Nombre completo a buscar", placeholder="ej. JUAN PEREZ GOMEZ")
+        pais     = st.selectbox("País de contexto", ["Colombia", "Venezuela", "México", "Internacional", ""])
+        max_n    = st.slider("Máx. noticias a mostrar", 5, 20, 10)
+        buscar_n = st.button("🔍 Buscar noticias", type="primary", use_container_width=True)
+
+    with c2:
+        if buscar_n:
+            if not nombre.strip():
+                st.warning("Escribe un nombre para buscar.")
+            else:
+                with st.spinner(f"Buscando noticias sobre **{nombre}**..."):
+                    noticias, error = buscar_noticias(nombre.strip(), pais, max_n)
+
+                if error:
+                    st.error(f"Error al consultar Google News: {error}")
+                elif not noticias:
+                    st.success("✅ No se encontraron noticias adversas asociadas.")
+                    log_q("NOTICIAS", "N/A", "N/A", nombre, "SIN NOTICIAS ADVERSAS")
+                else:
+                    adversas = [n for n in noticias if n["riesgo"]]
+                    neutras  = [n for n in noticias if not n["riesgo"]]
+
+                    if adversas:
+                        st.error(f"🚨 {len(adversas)} noticia(s) con indicadores de riesgo encontradas")
+                        log_q("NOTICIAS", "N/A", "N/A", nombre, f"{len(adversas)} NOTICIAS ADVERSAS")
+                    else:
+                        st.warning(f"⚠️ {len(noticias)} noticias encontradas — sin palabras de riesgo directas")
+                        log_q("NOTICIAS", "N/A", "N/A", nombre, "NOTICIAS SIN RIESGO DIRECTO")
+
+                    # Mostrar adversas primero
+                    if adversas:
+                        st.markdown("### 🔴 Noticias con indicadores de riesgo")
+                        for n in adversas:
+                            with st.expander(f"🔴 {n['titulo']}", expanded=True):
+                                col1, col2 = st.columns(2)
+                                col1.caption(f"📰 {n['fuente']}")
+                                col2.caption(f"📅 {n['fecha']}")
+                                st.markdown(f"[🔗 Ver noticia completa]({n['link']})")
+
+                    if neutras:
+                        st.markdown("### 🟡 Otras noticias encontradas")
+                        for n in neutras:
+                            with st.expander(f"🟡 {n['titulo']}"):
+                                col1, col2 = st.columns(2)
+                                col1.caption(f"📰 {n['fuente']}")
+                                col2.caption(f"📅 {n['fecha']}")
+                                st.markdown(f"[🔗 Ver noticia completa]({n['link']})")
+
+                    # Exportar
+                    df_noticias = pd.DataFrame(noticias)
+                    df_noticias["consultado"] = nombre
+                    df_noticias["fecha_consulta"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    st.download_button(
+                        "📥 Exportar noticias Excel",
+                        data=a_excel(df_noticias),
+                        file_name=f"noticias_{nombre[:20]}_{date.today()}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    )
+        else:
+            st.info("Escribe un nombre y presiona **Buscar noticias**.")
+            st.markdown("**Palabras de riesgo monitoreadas:**")
+            st.markdown(", ".join([f"`{p}`" for p in PALABRAS_RIESGO[:12]]) + "...")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # ROUTER
 # ─────────────────────────────────────────────────────────────────────────────
 if not st.session_state.logged_in:
@@ -589,6 +813,7 @@ else:
     sidebar()
     m = st.session_state.menu
     if   "OFAC"          in m: mod_ofac()
+    elif "Noticias"      in m: mod_noticias()
     elif "Policía"       in m: mod_policia()
     elif "Procuraduría"  in m: mod_procuraduria()
     elif "Registros"     in m: mod_logs()
