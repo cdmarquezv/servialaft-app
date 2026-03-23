@@ -260,37 +260,153 @@ def caja_resultado(tiene_coincidencia, nivel=None):
     return t
 
 
-# ─── Texto de certificación ───────────────────────────────────────────────────
-CERT_SIN = (
-    "SERVIALAFT SAS certifica que, en la fecha indicada en este documento, se realizó "
-    "la consulta de las listas vinculantes nacionales e internacionales disponibles en el "
-    "sistema, incluyendo las listas OFAC SDN, Resoluciones del Consejo de Seguridad de la "
-    "ONU, Personas Expuestas Políticamente (PEPs) y listas internas, para el sujeto "
-    "identificado en el presente certificado. <b>El resultado de dicha consulta es NEGATIVO: "
-    "el sujeto NO figura en ninguna de las listas consultadas</b> con el nivel de similitud "
-    "configurado (SimiliScore™). Este certificado es válido únicamente para la fecha y hora "
-    "de expedición, y debe renovarse periódicamente según la política de debida diligencia "
-    "de cada entidad."
-)
+# ─── Tabla de listas consultadas ─────────────────────────────────────────────
+LISTAS_CONSULTADAS = [
+    ("OFAC SDN",          "U.S. Department of the Treasury",    "NARCOTICS · SDGT · EO14059 · otros"),
+    ("Terroristas EE.UU.","U.S. Dept. of Treasury — OFAC",      "SDGT · FTO · TALIBAN · DPRK2"),
+    ("ONU",               "Consejo de Seguridad — Naciones Unidas","Res. 1267 · 1988 · 2341 · otros"),
+    ("Sanciones UE",      "Comisión Europea",                   "Lista Consolidada UE"),
+    ("PEPs Colombia",     "Función Pública — SIGEP Colombia",   "Decreto 830/2021"),
+    ("Google News",       "Google News RSS",                    "Noticias adversas en tiempo real"),
+    ("Fiscalía",          "Fiscalía General de la Nación",      "Boletines oficiales y capturas"),
+]
 
-CERT_CON = (
-    "SERVIALAFT SAS certifica que, en la fecha indicada en este documento, se realizó "
-    "la consulta de las listas vinculantes nacionales e internacionales disponibles en el "
-    "sistema. <b>El resultado de dicha consulta es POSITIVO: el sujeto identificado FIGURA "
-    "en una o más listas vinculantes</b>, tal como se detalla en la sección anterior. "
-    "Se recomienda proceder conforme al Manual SARLAFT de la entidad, escalar al oficial "
-    "de cumplimiento y abstenerse de iniciar o continuar la relación comercial hasta tanto "
-    "se haya realizado la debida diligencia ampliada requerida."
-)
+def tabla_listas_consultadas():
+    """Tabla con todas las fuentes consultadas."""
+    data = [["#", "LISTA / FUENTE", "ENTIDAD EMISORA", "PROGRAMAS / ALCANCE"]]
+    for i, (lista, entidad, alcance) in enumerate(LISTAS_CONSULTADAS, 1):
+        data.append([str(i), lista, entidad, alcance])
+
+    t = Table(data, colWidths=[20, 110, 180, 206])
+    t.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, 0),  AZUL_OSCURO),
+        ("TEXTCOLOR",     (0, 0), (-1, 0),  BLANCO),
+        ("FONTNAME",      (0, 0), (-1, 0),  "Helvetica-Bold"),
+        ("FONTSIZE",      (0, 0), (-1, -1), 7.5),
+        ("GRID",          (0, 0), (-1, -1), 0.4, GRIS_BORDE),
+        ("TOPPADDING",    (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 5),
+        ("ALIGN",         (0, 0), (0, -1),  "CENTER"),
+        ("ROWBACKGROUND", (0, 1), (-1, -1), [GRIS_SUAVE, BLANCO]),
+        ("FONTNAME",      (0, 1), (0, -1),  "Helvetica-Bold"),
+        ("TEXTCOLOR",     (0, 1), (0, -1),  AZUL_MED),
+    ]))
+    return t
+
+
+# ─── Sección de noticias en PDF ───────────────────────────────────────────────
+def seccion_noticias_pdf(story, S, nombre, noticias_google, noticias_fiscalia, num_sec):
+    """Agrega sección de noticias adversas al PDF."""
+    story.append(Paragraph(f"{num_sec}. BÚSQUEDA DE NOTICIAS ADVERSAS", S["seccion"]))
+    story.append(HRFlowable(width="100%", thickness=0.5, color=GRIS_BORDE, spaceAfter=6))
+
+    # Parámetros de búsqueda
+    terminos = "lavado · narcotrafico · corrupcion · fraude · capturado · investigado · condenado · sancionado · terrorismo · imputado · extorsion · peculado"
+    params_data = [
+        ["PARÁMETRO",          "VALOR"],
+        ["Nombre buscado",      nombre.upper()],
+        ["Método de búsqueda", 'Nombre completo entre comillas — coincidencia exacta de frase'],
+        ["Términos de riesgo",  terminos],
+        ["Fuentes consultadas", "Google News RSS · Fiscalía General (RSS WordPress)"],
+        ["Cobertura temporal",  "Últimas noticias indexadas"],
+    ]
+    pt = Table(params_data, colWidths=[160, 356])
+    pt.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, 0),  AZUL_MED),
+        ("TEXTCOLOR",     (0, 0), (-1, 0),  BLANCO),
+        ("FONTNAME",      (0, 0), (-1, 0),  "Helvetica-Bold"),
+        ("FONTSIZE",      (0, 0), (-1, -1), 7.5),
+        ("GRID",          (0, 0), (-1, -1), 0.4, GRIS_BORDE),
+        ("TOPPADDING",    (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 6),
+        ("ROWBACKGROUND", (0, 1), (-1, -1), [GRIS_SUAVE, BLANCO]),
+    ]))
+    story.append(pt)
+    story.append(Spacer(1, 8))
+
+    # Resultados Google News
+    story.append(Paragraph("<b>Google News — Noticias adversas</b>", ParagraphStyle(
+        "sh", fontSize=9, fontName="Helvetica-Bold", textColor=AZUL_MED, spaceAfter=4)))
+
+    todas_noticias = list(noticias_google or [])
+    adversas_g = [n for n in todas_noticias if n.get("riesgo")]
+    neutras_g  = [n for n in todas_noticias if not n.get("riesgo")]
+
+    if not todas_noticias:
+        story.append(Paragraph(
+            "Sin noticias adversas encontradas en Google News para el nombre consultado.",
+            ParagraphStyle("ok", fontSize=8, fontName="Helvetica", textColor=VERDE, spaceAfter=4)
+        ))
+    else:
+        if adversas_g:
+            story.append(Paragraph(
+                f"<b>🚨 {len(adversas_g)} noticia(s) con indicadores de riesgo:</b>",
+                ParagraphStyle("alerta", fontSize=8.5, fontName="Helvetica-Bold",
+                               textColor=ROJO, spaceAfter=3)
+            ))
+            for n in adversas_g:
+                story.append(Paragraph(
+                    f"• <b>{n.get('titulo','')}</b> | {n.get('fuente','—')} | {n.get('fecha','—')}",
+                    ParagraphStyle("ni", fontSize=7.5, fontName="Helvetica",
+                                   textColor=GRIS_TEXTO, spaceAfter=2, leftIndent=10)
+                ))
+        if neutras_g:
+            story.append(Spacer(1, 4))
+            story.append(Paragraph(
+                f"Otras {len(neutras_g)} noticias encontradas sin palabras de riesgo directas.",
+                ParagraphStyle("neu", fontSize=8, fontName="Helvetica",
+                               textColor=GRIS_TEXTO, spaceAfter=2)
+            ))
+
+    story.append(Spacer(1, 8))
+
+    # Resultados Fiscalía
+    story.append(Paragraph("<b>Fiscalía General de la Nación — Boletines oficiales</b>",
+        ParagraphStyle("sh2", fontSize=9, fontName="Helvetica-Bold",
+                       textColor=AZUL_MED, spaceAfter=4)))
+
+    nf = list(noticias_fiscalia or [])
+    if not nf:
+        story.append(Paragraph(
+            "Sin resultados en boletines oficiales de la Fiscalía General para el nombre consultado.",
+            ParagraphStyle("okf", fontSize=8, fontName="Helvetica",
+                           textColor=VERDE, spaceAfter=4)
+        ))
+    else:
+        story.append(Paragraph(
+            f"<b>🚨 {len(nf)} resultado(s) en la Fiscalía General de la Nación:</b>",
+            ParagraphStyle("alertaf", fontSize=8.5, fontName="Helvetica-Bold",
+                           textColor=ROJO, spaceAfter=3)
+        ))
+        for n in nf:
+            story.append(Paragraph(
+                f"• <b>{n.get('titulo','')}</b> | {n.get('fecha','—')}",
+                ParagraphStyle("nif", fontSize=7.5, fontName="Helvetica",
+                               textColor=GRIS_TEXTO, spaceAfter=2, leftIndent=10)
+            ))
+            if n.get("desc"):
+                story.append(Paragraph(
+                    f"  {n['desc']}...",
+                    ParagraphStyle("desc", fontSize=7, fontName="Helvetica",
+                                   textColor=colors.HexColor("#6B7280"),
+                                   spaceAfter=3, leftIndent=20)
+                ))
+
+    story.append(Spacer(1, 6))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PDF INDIVIDUAL
 # ═══════════════════════════════════════════════════════════════════════════════
 def generar_pdf_individual(tipo_id, nro_id, nombre, df_resultado,
-                           usuario="sistema", folio=None):
+                           usuario="sistema", folio=None,
+                           noticias_google=None, noticias_fiscalia=None):
     """
     Genera el PDF de certificación individual.
+    noticias_google: lista de dicts con keys titulo, fuente, fecha, riesgo
+    noticias_fiscalia: lista de dicts con keys titulo, fuente, fecha, desc
     Retorna bytes del PDF.
     """
     buf = io.BytesIO()
@@ -298,14 +414,17 @@ def generar_pdf_individual(tipo_id, nro_id, nombre, df_resultado,
         buf, pagesize=letter,
         topMargin=66, bottomMargin=52,
         leftMargin=48, rightMargin=48,
-        title="Certificado de Consulta — SERVIALAFT SAS",
+        title="Certificado de Consulta — CruzaListas · SERVIALAFT SAS",
         author="SERVIALAFT SAS",
     )
 
     S = get_styles()
-    folio = folio or f"SA-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    folio = folio or f"CL-{datetime.now().strftime('%Y%m%d%H%M%S')}"
     tiene = df_resultado is not None and not df_resultado.empty
     nivel_principal = df_resultado["nivel"].iloc[0] if tiene else None
+    tiene_noticias  = bool(noticias_google) or bool(noticias_fiscalia)
+    adversas_count  = len([n for n in (noticias_google or []) if n.get("riesgo")]) + \
+                      len(noticias_fiscalia or [])
 
     story = []
 
@@ -315,51 +434,78 @@ def generar_pdf_individual(tipo_id, nro_id, nombre, df_resultado,
 
     # ── Título ─────────────────────────────────────────────────────────────
     story.append(Paragraph("CERTIFICADO DE CONSULTA DE LISTAS VINCULANTES", S["titulo"]))
-    story.append(Paragraph("Consulta individual · OFAC SDN · ONU · PEPs Colombia", S["subtitulo"]))
+    story.append(Paragraph(
+        "CruzaListas · OFAC SDN · Terroristas EE.UU. · ONU · Sanciones UE · PEPs Colombia · Noticias Adversas",
+        S["subtitulo"]))
     story.append(HRFlowable(width="100%", thickness=1.5, color=AZUL_OSCURO, spaceAfter=10))
 
-    # ── Datos del consultado ───────────────────────────────────────────────
+    # ── 1. Datos del consultado ────────────────────────────────────────────
     story.append(Paragraph("1. DATOS DEL SUJETO CONSULTADO", S["seccion"]))
-    story.append(tabla_consultado(tipo_id, nro_id, nombre, usuario, "OFAC / ONU / PEPs"))
+    story.append(tabla_consultado(tipo_id, nro_id, nombre, usuario, "BÚSQUEDA UNIFICADA"))
     story.append(Spacer(1, 12))
 
-    # ── Resultado ──────────────────────────────────────────────────────────
+    # ── 2. Resultado general ───────────────────────────────────────────────
     story.append(Paragraph("2. RESULTADO DE LA CONSULTA", S["seccion"]))
     story.append(caja_resultado(tiene, nivel_principal))
+    if tiene_noticias and adversas_count > 0:
+        story.append(Spacer(1, 6))
+        t_not = Table([[Paragraph(
+            f"<b>⚠  NOTICIAS ADVERSAS: {adversas_count} resultado(s) — Ver sección de noticias</b>",
+            ParagraphStyle("na", fontSize=9, fontName="Helvetica-Bold",
+                           textColor=AMARILLO, alignment=TA_CENTER))]],
+            colWidths=[516])
+        t_not.setStyle(TableStyle([
+            ("BACKGROUND", (0,0),(-1,-1), AMARILLO_BG),
+            ("BOX",        (0,0),(-1,-1), 1, colors.HexColor("#FCD34D")),
+            ("TOPPADDING",    (0,0),(-1,-1), 8),
+            ("BOTTOMPADDING", (0,0),(-1,-1), 8),
+        ]))
+        story.append(t_not)
     story.append(Spacer(1, 10))
 
-    # ── Detalle de coincidencias ───────────────────────────────────────────
+    # ── 3. Listas consultadas ──────────────────────────────────────────────
+    story.append(Paragraph("3. LISTAS Y FUENTES CONSULTADAS", S["seccion"]))
+    story.append(tabla_listas_consultadas())
+    story.append(Spacer(1, 10))
+
+    # ── 4. Detalle de coincidencias ────────────────────────────────────────
     if tiene:
-        story.append(Paragraph("3. DETALLE DE COINCIDENCIAS ENCONTRADAS", S["seccion"]))
+        story.append(Paragraph("4. DETALLE DE COINCIDENCIAS EN LISTAS", S["seccion"]))
         story.append(tabla_coincidencias(df_resultado))
         story.append(Spacer(1, 10))
 
-    # ── Texto de certificación ─────────────────────────────────────────────
-    num = "4." if tiene else "3."
-    story.append(Paragraph(f"{num} CERTIFICACIÓN Y ALCANCE", S["seccion"]))
+    # ── 5. Noticias adversas ───────────────────────────────────────────────
+    if tiene_noticias:
+        num_not = "5." if tiene else "4."
+        seccion_noticias_pdf(story, S, nombre,
+                             noticias_google, noticias_fiscalia,
+                             num_not.replace(".",""))
+
+    # ── 6. Certificación ───────────────────────────────────────────────────
+    nums = [n for n in ["5","6"] if True]  # numeración dinámica
+    num_cert = str(4 + (1 if tiene else 0) + (1 if tiene_noticias else 0) + 1) + "."
+    story.append(Paragraph(f"{num_cert} CERTIFICACIÓN Y ALCANCE", S["seccion"]))
     story.append(HRFlowable(width="100%", thickness=0.5, color=GRIS_BORDE, spaceAfter=6))
     cert_texto = CERT_CON if tiene else CERT_SIN
     story.append(Paragraph(cert_texto, S["certif"]))
     story.append(Spacer(1, 14))
 
     # ── Firma ──────────────────────────────────────────────────────────────
-    firma_data = [
-        [
-            Paragraph("<b>____________________________</b><br/>Firma Usuario Consultor<br/>"
-                      f"<font size=8>{usuario.upper()}</font>", S["normal"]),
-            Paragraph("<b>____________________________</b><br/>Oficial de Cumplimiento<br/>"
-                      "<font size=8>SERVIALAFT SAS</font>", S["normal"]),
-        ]
-    ]
+    firma_data = [[
+        Paragraph("<b>____________________________</b><br/>Firma Usuario Consultor<br/>"
+                  f"<font size=8>{usuario.upper()}</font>", S["normal"]),
+        Paragraph("<b>____________________________</b><br/>Oficial de Cumplimiento<br/>"
+                  "<font size=8>SERVIALAFT SAS</font>", S["normal"]),
+    ]]
     firma_t = Table(firma_data, colWidths=[258, 258])
     firma_t.setStyle(TableStyle([
-        ("ALIGN",   (0, 0), (-1, -1), "CENTER"),
-        ("VALIGN",  (0, 0), (-1, -1), "BOTTOM"),
-        ("TOPPADDING",    (0, 0), (-1, -1), 20),
+        ("ALIGN",        (0,0),(-1,-1), "CENTER"),
+        ("VALIGN",       (0,0),(-1,-1), "BOTTOM"),
+        ("TOPPADDING",   (0,0),(-1,-1), 20),
     ]))
     story.append(KeepTogether([
         HRFlowable(width="100%", thickness=0.5, color=GRIS_BORDE, spaceAfter=4),
-        Paragraph("Firmas y validación", S["pie"]),
+        Paragraph("Firmas y validación — CruzaListas · Desarrollado por SERVIALAFT SAS", S["pie"]),
         Spacer(1, 6),
         firma_t,
     ]))
