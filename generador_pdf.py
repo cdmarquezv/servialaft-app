@@ -260,6 +260,29 @@ def caja_resultado(tiene_coincidencia, nivel=None):
     return t
 
 
+# ─── Textos de certificación ─────────────────────────────────────────────────
+CERT_SIN = (
+    "SERVIALAFT SAS certifica que, en la fecha indicada en este documento, se realizó "
+    "la consulta de las listas vinculantes nacionales e internacionales disponibles en el "
+    "sistema CruzaListas, incluyendo OFAC SDN, Terroristas EE.UU., Resoluciones del Consejo "
+    "de Seguridad de la ONU, Sanciones UE, Personas Expuestas Políticamente (PEPs Colombia) "
+    "y búsqueda de noticias adversas en Google News y Fiscalía General de la Nación. "
+    "<b>El resultado de dicha consulta es NEGATIVO: el sujeto NO figura en ninguna de las "
+    "listas consultadas</b> con el nivel de similitud configurado (SimiliScore™). "
+    "Este certificado es válido únicamente para la fecha y hora de expedición, y debe "
+    "renovarse periódicamente según la política de debida diligencia de cada entidad."
+)
+
+CERT_CON = (
+    "SERVIALAFT SAS certifica que, en la fecha indicada en este documento, se realizó "
+    "la consulta de las listas vinculantes nacionales e internacionales disponibles en el "
+    "sistema CruzaListas. <b>El resultado de dicha consulta es POSITIVO: el sujeto "
+    "identificado FIGURA en una o más listas vinculantes</b>, tal como se detalla en la "
+    "sección anterior. Se recomienda proceder conforme al Manual SARLAFT de la entidad, "
+    "escalar al oficial de cumplimiento y abstenerse de iniciar o continuar la relación "
+    "comercial hasta tanto se haya realizado la debida diligencia ampliada requerida."
+)
+
 # ─── Tabla de listas consultadas ─────────────────────────────────────────────
 LISTAS_CONSULTADAS = [
     ("OFAC SDN",          "U.S. Department of the Treasury",    "NARCOTICS · SDGT · EO14059 · otros"),
