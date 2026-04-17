@@ -1,0 +1,17 @@
+{
+  "admin": {
+    "password": "CambiarEsto2025!",
+    "rol": "Administrador",
+    "nombre": "Admin Principal"
+  },
+  "analista1": {
+    "password": "Analista2025!",
+    "rol": "Analista",
+    "nombre": "Laura Gomez"
+  },
+  "consultor": {
+    "password": "Consultor2025!",
+    "rol": "Consultor",
+    "nombre": "Andres Martinez"
+  }
+}

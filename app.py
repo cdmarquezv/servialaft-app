@@ -46,18 +46,51 @@ st.markdown("""
     border-radius:12px; padding:20px 16px; text-align:center; }
 .metric-num   { font-size:38px; font-weight:800; color:#0f1b2d; line-height:1; }
 .metric-label { font-size:13px; color:#6c757d; margin-top:6px; }
+.footer-brand {
+    position:fixed; bottom:0; left:0; right:0;
+    background:#0f1b2d; color:#94a3b8;
+    text-align:center; padding:8px 16px;
+    font-size:12px; z-index:999;
+    border-top:1px solid rgba(255,255,255,0.08);
+}
+.footer-brand a { color:#60a5fa; text-decoration:none; }
+.footer-brand a:hover { text-decoration:underline; }
 footer { visibility:hidden; } #MainMenu { visibility:hidden; }
 </style>
 """, unsafe_allow_html=True)
 
-for k, v in {"logged_in":False,"user":None,"menu":"UNIFICADA","logs":[]}.items():
+# Footer de marca — siempre visible
+st.markdown("""
+<div class="footer-brand">
+    🛡️ <b>CruzaListas</b> &nbsp;·&nbsp;
+    Desarrollado y operado por <b>SERVIALAFT SAS</b> &nbsp;·&nbsp;
+    Todos los derechos reservados © 2025 &nbsp;·&nbsp;
+    <a href="mailto:contacto@servialaft.com">contacto@servialaft.com</a>
+</div>
+""", unsafe_allow_html=True)
+
+for k, v in {
+    "logged_in": False,
+    "user": None,
+    "menu": "UNIFICADA",
+    "logs": [],
+    "ultima_consulta": {"tipo_id": "CC", "nro_id": "", "nombre": ""},
+    "login_intentos": 0,
+    "login_bloqueado_hasta": None,
+}.items():
     if k not in st.session_state: st.session_state[k] = v
 
-USUARIOS = {
-    "admin":     {"password":"admin123",    "rol":"Administrador","nombre":"Admin Principal"},
-    "analista1": {"password":"sarlaft2024", "rol":"Analista",     "nombre":"Laura Gomez"},
-    "consultor": {"password":"consulta01",  "rol":"Consultor",    "nombre":"Andres Martinez"},
-}
+def _cargar_usuarios():
+    if _os.path.exists("usuarios.json"):
+        with open("usuarios.json", "r", encoding="utf-8") as _f:
+            return _json.load(_f)
+    return {
+        "admin":     {"password": "admin123",    "rol": "Administrador", "nombre": "Admin Principal"},
+        "analista1": {"password": "sarlaft2024", "rol": "Analista",      "nombre": "Laura Gomez"},
+        "consultor": {"password": "consulta01",  "rol": "Consultor",     "nombre": "Andres Martinez"},
+    }
+
+USUARIOS = _cargar_usuarios()
 
 def cargar_listas():
     if _os.path.exists("listas_vinculantes.json"):
@@ -85,27 +118,15 @@ def cargar_listas():
         {"tipo_id":"CC", "nro_id":"98530916","nombre":"JOSE GONZALO RODRIGUEZ GACHA","origen":"OFAC SDN","detalle":"NARCOTICS — El Mexicano"},
         {"tipo_id":"CC", "nro_id":"71700551","nombre":"DANIEL RENDON HERRERA","origen":"OFAC SDN","detalle":"NARCOTICS — Don Mario"},
         {"tipo_id":"CC", "nro_id":"77040924","nombre":"HENRY DE JESUS LOPEZ LONDONO","origen":"OFAC SDN","detalle":"NARCOTICS — Mi Sangre"},
+        {"tipo_id":"CC", "nro_id":"79945621","nombre":"GUSTAVO FRANCISCO PETRO URREGO","origen":"OFAC SDN","detalle":"NARCOTICS — Lista Clinton · Incluido Oct 2025 por Trump · Vínculos narcoterrorismo"},
         {"tipo_id":"NIT","nro_id":"800154059","nombre":"GRUPO EMPRESARIAL DAABON","origen":"OFAC SDN","detalle":"SDGT — Vínculos narcoactividad"},
+        {"tipo_id":"NIT","nro_id":"900234567","nombre":"ODEBRECHT COLOMBIA","origen":"OFAC SDN","detalle":"SDGT — Sobornos y corrupción"},
         # ONU — Sanciones
         {"tipo_id":"CC", "nro_id":"19430101","nombre":"IVAN MARQUEZ","origen":"ONU","detalle":"RES. 2341 — FARC disidencias"},
         {"tipo_id":"CC", "nro_id":"19620303","nombre":"JESUS SANTRICH","origen":"ONU","detalle":"RES. 2341 — FARC narcotrafico"},
         # Terroristas
         {"tipo_id":"CC", "nro_id":"71359678","nombre":"TIMOLEON JIMENEZ","origen":"TERRORISTAS EE.UU.","detalle":"SDGT — FARC Timochenko"},
         {"tipo_id":"CC", "nro_id":"17030128","nombre":"RODRIGO LONDONO ECHEVERRI","origen":"TERRORISTAS EE.UU.","detalle":"SDGT — FARC Timochenko (AKA)"},
-        # PEPs reconocidos
-        {"tipo_id":"CC", "nro_id":"19494471","nombre":"ERNESTO SAMPER PIZANO","origen":"PEP","detalle":"Ex-Presidente de Colombia 1994-1998"},
-        {"tipo_id":"CC", "nro_id":"19465122","nombre":"ALVARO URIBE VELEZ","origen":"PEP","detalle":"Ex-Presidente de Colombia 2002-2010"},
-        {"tipo_id":"CC", "nro_id":"19427479","nombre":"JUAN MANUEL SANTOS CALDERON","origen":"PEP","detalle":"Ex-Presidente de Colombia 2010-2018"},
-        {"tipo_id":"CC", "nro_id":"79945621","nombre":"GUSTAVO FRANCISCO PETRO URREGO","origen":"PEP","detalle":"Presidente de Colombia 2022-2026"},
-        {"tipo_id":"CC", "nro_id":"55230826","nombre":"FRANCIA ELENA MARQUEZ MINA","origen":"PEP","detalle":"Vicepresidenta de Colombia 2022-2026"},
-        {"tipo_id":"CC", "nro_id":"98530111","nombre":"PIEDAD ESNEDA CORDOBA RUIZ","origen":"PEP","detalle":"Ex-Senadora — Investigada FARC"},
-        {"tipo_id":"CC", "nro_id":"42765432","nombre":"MARIA JOSE PIZARRO RODRIGUEZ","origen":"PEP","detalle":"Senadora de la República"},
-        {"tipo_id":"CC", "nro_id":"79876543","nombre":"ROY LEONARDO BARRERAS MONTEALEGRE","origen":"PEP","detalle":"Senador — Ex-Presidente Senado"},
-        {"tipo_id":"CC", "nro_id":"80345678","nombre":"IVAN DUQUE MARQUEZ","origen":"PEP","detalle":"Ex-Presidente de Colombia 2018-2022"},
-        # Declarados PEP
-        {"tipo_id":"CC", "nro_id":"71234567","nombre":"FEDERICO GUTIERREZ ZULUAGA","origen":"DECLARADO PEP","detalle":"Ex-Alcalde Medellín / Ex-candidato presidencial"},
-        {"tipo_id":"CC", "nro_id":"79432109","nombre":"ENRIQUE PENALOSA LONDONO","origen":"DECLARADO PEP","detalle":"Ex-Alcalde Bogotá"},
-        {"tipo_id":"NIT","nro_id":"900234567","nombre":"ODEBRECHT COLOMBIA","origen":"OFAC SDN","detalle":"SDGT — Sobornos y corrupción"},
     ])
     return demo, False, {}
 
@@ -191,68 +212,66 @@ def _rss_fetch(url,max_n=8):
         return items,None
     except Exception as e: return [],str(e)
 
-def buscar_noticias(nombre,pais="Colombia",max_n=8):
-    t="lavado OR narcotrafico OR corrupcion OR fraude OR capturado OR investigado OR condenado OR sancionado OR terrorismo OR imputado"
-    q=f'"{nombre}" ({t})'
-    if pais: q+=f" {pais}"
-    return _rss_fetch(f"https://news.google.com/rss/search?q={_uparse.quote(q)}&hl=es-419&gl=CO&ceid=CO:es-419",max_n)
+def buscar_noticias(nombre, pais="Colombia", max_n=8):
+    """Busca noticias adversas usando nombre completo entre comillas para evitar falsos positivos."""
+    # Nombre completo entre comillas = exige coincidencia exacta de frase
+    nombre_q = f'"{nombre}"'
+    t = "lavado OR narcotrafico OR corrupcion OR fraude OR capturado OR investigado OR condenado OR sancionado OR terrorismo OR imputado OR extorsion OR peculado"
+    q = f'{nombre_q} ({t})'
+    if pais: q += f" {pais}"
+    return _rss_fetch(
+        f"https://news.google.com/rss/search?q={_uparse.quote(q)}&hl=es-419&gl=CO&ceid=CO:es-419",
+        max_n
+    )
 
 def buscar_noticias_fiscalia(nombre, max_n=6):
-    """Busca directamente en el sitio de la Fiscalía via RSS de búsqueda WordPress."""
+    """Busca directamente en la Fiscalía con nombre completo exacto."""
     resultados = []
-
-    # Método 1: RSS de búsqueda WordPress de fiscalia.gov.co
+    # Método 1: RSS WordPress de fiscalia.gov.co con nombre entre comillas
     try:
-        url_rss = f"https://www.fiscalia.gov.co/colombia/?s={_uparse.quote(nombre)}&feed=rss2"
+        url_rss = f"https://www.fiscalia.gov.co/colombia/?s={_uparse.quote(f'{nombre}')}&feed=rss2"
         req = _ureq.Request(url_rss, headers={
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "application/rss+xml, application/xml, text/xml",
         })
         with _ureq.urlopen(req, timeout=12) as resp:
             root = _ET.fromstring(resp.read())
         for item in root.findall(".//item")[:max_n]:
-            titulo = item.findtext("title", "").strip()
-            link   = item.findtext("link",  "").strip()
-            fecha  = (item.findtext("pubDate", "") or "")[:16]
-            desc   = item.findtext("description", "").strip()[:200]
+            titulo = item.findtext("title","").strip()
+            link   = item.findtext("link","").strip()
+            fecha  = (item.findtext("pubDate","") or "")[:16]
+            desc   = item.findtext("description","").strip()[:200]
             if titulo:
-                resultados.append({
-                    "titulo":  titulo,
-                    "fuente":  "Fiscalía General de la Nación",
-                    "fecha":   fecha,
-                    "link":    link,
-                    "desc":    desc,
-                    "origen":  "Fiscalía",
-                    "riesgo":  True,
-                })
+                # Verificar que el título contenga al menos parte del nombre buscado
+                partes_nombre = [p for p in nombre.upper().split() if len(p) > 3]
+                coincide = any(p in titulo.upper() for p in partes_nombre[:2])
+                if coincide:
+                    resultados.append({
+                        "titulo": titulo, "fuente": "Fiscalía General de la Nación",
+                        "fecha": fecha, "link": link, "desc": desc,
+                        "origen": "Fiscalía", "riesgo": True,
+                    })
     except Exception:
         pass
-
-    # Método 2: Google News filtrado a fiscalia.gov.co (fallback)
+    # Método 2: Google News con nombre exacto + fiscalía (fallback)
     if not resultados:
         try:
-            q = f'site:fiscalia.gov.co "{nombre}"'
+            q = f'"{nombre}" site:fiscalia.gov.co OR "{nombre}" fiscalia colombia imputado OR capturado OR condenado'
             url_gn = f"https://news.google.com/rss/search?q={_uparse.quote(q)}&hl=es-419&gl=CO&ceid=CO:es-419"
             req2 = _ureq.Request(url_gn, headers={"User-Agent": "Mozilla/5.0"})
             with _ureq.urlopen(req2, timeout=10) as resp:
                 root2 = _ET.fromstring(resp.read())
             for item in root2.findall(".//item")[:max_n]:
-                titulo = item.findtext("title", "").strip()
-                link   = item.findtext("link",  "").strip()
-                fecha  = (item.findtext("pubDate", "") or "")[:16]
-                if titulo:
+                titulo = item.findtext("title","").strip()
+                link   = item.findtext("link","").strip()
+                fecha  = (item.findtext("pubDate","") or "")[:16]
+                if titulo and nombre.split()[0].upper() in titulo.upper():
                     resultados.append({
-                        "titulo": titulo,
-                        "fuente": "Fiscalía (vía Google)",
-                        "fecha":  fecha,
-                        "link":   link,
-                        "desc":   "",
-                        "origen": "Fiscalía",
-                        "riesgo": True,
+                        "titulo": titulo, "fuente": "Fiscalía (vía Google)",
+                        "fecha": fecha, "link": link, "desc": "",
+                        "origen": "Fiscalía", "riesgo": True,
                     })
         except Exception:
             pass
-
     return resultados
 
 def mostrar_noticias(nom_label, tipo_id, id_label):
@@ -319,27 +338,54 @@ def mostrar_noticias(nom_label, tipo_id, id_label):
             st.markdown(f"[🔍 Ver todos los resultados en Fiscalía]({url_fiscalia})")
 
 def pantalla_login():
+    from datetime import timedelta
     _,col,_=st.columns([1,1.3,1])
     with col:
         st.markdown("""<div class="login-wrap">
-          <div class="login-title">🛡️ SERVIALAFT SAS</div>
-          <div class="login-sub">Sistema de Consulta Listas Vinculantes<br>
-          OFAC · ONU · Terroristas · PEPs · Noticias Adversas</div>
+          <div class="login-title">🛡️ CruzaListas</div>
+          <div class="login-sub">Sistema de Consulta de Listas Vinculantes<br>
+          OFAC · ONU · Terroristas · PEPs · Noticias Adversas<br><br>
+          <span style="font-size:11px;color:#9ca3af;">
+          Desarrollado y operado por <b>SERVIALAFT SAS</b>
+          </span></div>
         </div>""",unsafe_allow_html=True)
+
+        # Verificar bloqueo por intentos fallidos
+        bloqueado_hasta = st.session_state.login_bloqueado_hasta
+        if bloqueado_hasta and datetime.now() < bloqueado_hasta:
+            segundos = int((bloqueado_hasta - datetime.now()).total_seconds())
+            st.error(f"Demasiados intentos fallidos. Espera {segundos} segundo(s) para volver a intentar.")
+            return
+
         usuario=st.text_input("Usuario",placeholder="usuario")
         password=st.text_input("Contraseña",type="password",placeholder="contraseña")
         st.caption("Demo → **admin** / **admin123**")
         if st.button("Iniciar sesión →",type="primary",use_container_width=True):
             if usuario in USUARIOS and USUARIOS[usuario]["password"]==password:
-                st.session_state.logged_in=True; st.session_state.user=usuario; st.rerun()
-            else: st.error("Usuario o contraseña incorrectos.")
+                st.session_state.logged_in=True
+                st.session_state.user=usuario
+                st.session_state.login_intentos=0
+                st.session_state.login_bloqueado_hasta=None
+                st.rerun()
+            else:
+                st.session_state.login_intentos += 1
+                intentos = st.session_state.login_intentos
+                if intentos >= 5:
+                    st.session_state.login_bloqueado_hasta = datetime.now() + timedelta(minutes=5)
+                    st.error("Demasiados intentos fallidos. Acceso bloqueado por 5 minutos.")
+                else:
+                    restantes = 5 - intentos
+                    st.error(f"Usuario o contraseña incorrectos. {restantes} intento(s) restante(s) antes del bloqueo.")
 
-MENU_ITEMS=["🔍 Búsqueda Unificada","👮 Policía Nacional","⚖️ Procuraduría",
-            "📋 Registros consultados","📊 Estadísticas de uso","🚪 Cerrar sesión"]
+MENU_ITEMS=["🔍 Búsqueda Unificada","🔗 Otras Fuentes",
+            "📋 Registros consultados","📊 Estadísticas de uso",
+            "🚪 Cerrar sesión"]
 
 def sidebar():
     with st.sidebar:
-        st.markdown("### 🛡️ SERVIALAFT SAS"); st.markdown("---")
+        st.markdown("### 🛡️ CruzaListas")
+        st.caption("por SERVIALAFT SAS")
+        st.markdown("---")
         info=USUARIOS[st.session_state.user]
         st.markdown(f"**{info['nombre']}**"); st.caption(f"Rol: {info['rol']}"); st.markdown("---")
         idx=0
@@ -358,30 +404,23 @@ def mod_unificada():
         total=LISTAS_META.get("total",len(TODAS)); fecha=LISTAS_META.get("fecha_actualizacion","—")
         st.success(f"✅ Listas reales — **{total:,} registros** | Actualización: {fecha}")
     else:
-        st.warning("⚠️ Datos de demo — corre `descargar_listas.py` para activar datos reales.")
+        st.warning("⚠️ Datos de demo — corre `descargar_listas.py` para activar datos reales (incluye PEPs desde datos.gov.co).")
 
     tab_ind,tab_mas=st.tabs(["🔎 Consulta individual","📂 Carga masiva (Excel)"])
 
     with tab_ind:
         c1,c2=st.columns([1,2])
         with c1:
-            tipo_id=st.selectbox("Tipo ID",["CC","NIT","CE","PAS"])
-            nro_id=st.text_input("Número de identificación",placeholder="Opcional")
-            nombre=st.text_input("Nombre completo",placeholder="Opcional")
+            uc = st.session_state.ultima_consulta
+            tipo_id=st.selectbox("Tipo ID",["CC","NIT","CE","PAS"],
+                index=["CC","NIT","CE","PAS"].index(uc["tipo_id"]) if uc["tipo_id"] in ["CC","NIT","CE","PAS"] else 0)
+            nro_id=st.text_input("Número de identificación",value=uc["nro_id"],placeholder="Opcional")
+            nombre=st.text_input("Nombre completo",value=uc["nombre"],placeholder="Opcional")
             st.caption("💡 Busca por nombre, documento o ambos.")
             umbral=st.slider("SimiliScore™ (%)",50,100,85)
             consultar=st.button("🔍 Consultar",type="primary",use_container_width=True)
-            st.markdown("---"); st.markdown("**🔗 Verificación manual (CAPTCHA)**")
-            st.markdown("""
-            <a class="ext-link" href="https://antecedentes.policia.gov.co:7005/WebJudicial/" target="_blank">
-              <div class="ext-title">👮 Policía Nacional</div>
-              <div class="ext-url">antecedentes.policia.gov.co</div></a>
-            <a class="ext-link" href="https://www.procuraduria.gov.co/Pages/Consulta-de-Antecedentes.aspx" target="_blank">
-              <div class="ext-title">⚖️ Procuraduría General</div>
-              <div class="ext-url">procuraduria.gov.co</div></a>
-            <a class="ext-link" href="https://www.fiscalia.gov.co/colombia/busqueda/" target="_blank">
-              <div class="ext-title">🏛️ Fiscalía General</div>
-              <div class="ext-url">fiscalia.gov.co</div></a>""",unsafe_allow_html=True)
+            st.markdown("---")
+            st.caption("💡 Para Policía, Procuraduría, Rama Judicial y otras fuentes ve a **🔗 Otras Fuentes**.")
         with c2:
             if consultar:
                 td=bool(nro_id.strip()); tn=bool(nombre.strip())
@@ -390,6 +429,10 @@ def mod_unificada():
                 else:
                     il=nro_id.strip() if td else "N/A"
                     nl=nombre.strip() if tn else "(búsqueda por documento)"
+                    # Guardar en session_state para precargar Policía/Procuraduría
+                    st.session_state.ultima_consulta = {
+                        "tipo_id": tipo_id, "nro_id": nro_id.strip(), "nombre": nombre.strip()
+                    }
                     with st.spinner("Consultando listas vinculantes..."):
                         df=buscar(tipo_id,nro_id.strip() if td else "",nombre.strip() if tn else "",umbral/100)
                     st.markdown("### 📋 Listas vinculantes")
@@ -411,16 +454,36 @@ def mod_unificada():
                                 if row.get("detalle"): st.write(f"**Detalle:** {row['detalle']}")
                     if tn:
                         st.markdown("---")
-                        mostrar_noticias(nl,tipo_id,il)
+                        # Guardar noticias en session para pasarlas al PDF
+                        with st.spinner("Buscando noticias adversas..."):
+                            _not_g, _  = buscar_noticias(nl, "Colombia", 8)
+                            _not_f     = buscar_noticias_fiscalia(nl)
+                        st.session_state["_last_noticias_g"] = _not_g
+                        st.session_state["_last_noticias_f"] = _not_f
+                        mostrar_noticias(nl, tipo_id, il)
+                    else:
+                        st.session_state["_last_noticias_g"] = []
+                        st.session_state["_last_noticias_f"] = []
                     st.markdown("---")
-                    cx,cy=st.columns(2)
-                    de=df if not df.empty else pd.DataFrame({"tipo_id":[tipo_id],"nro_id":[il],"nombre":[nl],"resultado":["SIN COINCIDENCIA"]})
-                    cx.download_button("📥 Excel",data=a_excel(de),file_name=f"consulta_{il}_{date.today()}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",use_container_width=True)
+                    cx, cy = st.columns(2)
+                    de = df if not df.empty else pd.DataFrame({
+                        "tipo_id":[tipo_id],"nro_id":[il],"nombre":[nl],"resultado":["SIN COINCIDENCIA"]})
+                    cx.download_button("📥 Excel", data=a_excel(de),
+                        file_name=f"consulta_{il}_{date.today()}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True)
                     if PDF_DISPONIBLE:
-                        pb=generar_pdf_individual(tipo_id,il,nl,df if not df.empty else None,usuario=st.session_state.user)
-                        cy.download_button("📄 Certificado PDF",data=pb,file_name=f"certificado_{il}_{date.today()}.pdf",
-                            mime="application/pdf",use_container_width=True)
+                        pb = generar_pdf_individual(
+                            tipo_id, il, nl,
+                            df if not df.empty else None,
+                            usuario=st.session_state.user,
+                            noticias_google=st.session_state.get("_last_noticias_g",[]),
+                            noticias_fiscalia=st.session_state.get("_last_noticias_f",[]),
+                            watermark=not LISTAS_REALES,
+                        )
+                        cy.download_button("📄 Certificado PDF", data=pb,
+                            file_name=f"certificado_{il}_{date.today()}.pdf",
+                            mime="application/pdf", use_container_width=True)
             else:
                 st.info("Completa el formulario y presiona **Consultar**.")
                 st.markdown("""
@@ -472,7 +535,7 @@ def mod_unificada():
                     bx.download_button("📥 Excel",data=a_excel(do),file_name=f"masivo_{date.today()}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",use_container_width=True)
                     if PDF_DISPONIBLE:
-                        pm=generar_pdf_masivo(do,umbral_m/100,usuario=st.session_state.user)
+                        pm=generar_pdf_masivo(do,umbral_m/100,usuario=st.session_state.user,watermark=not LISTAS_REALES)
                         by.download_button("📄 Reporte PDF",data=pm,file_name=f"reporte_masivo_{date.today()}.pdf",
                             mime="application/pdf",use_container_width=True)
             elif procesar: st.warning("Sube primero un archivo .xlsx")
@@ -480,51 +543,172 @@ def mod_unificada():
 
 def mod_policia():
     st.markdown("## 👮 Antecedentes Judiciales — Policía Nacional")
-    st.info("Esta fuente usa CAPTCHA. Accede al portal y registra el resultado aquí.",icon="ℹ️")
+    st.info("Esta fuente usa CAPTCHA. Accede al portal y registra el resultado aquí.", icon="ℹ️")
+
+    uc = st.session_state.ultima_consulta
+    if uc["nombre"] or uc["nro_id"]:
+        st.success(f"✅ Datos precargados desde última consulta: **{uc['nombre'] or uc['nro_id']}**")
+
     st.markdown("""<a class="ext-link" href="https://antecedentes.policia.gov.co:7005/WebJudicial/" target="_blank">
       <div class="ext-title">🔗 Policía Nacional — Certificado Judicial</div>
-      <div class="ext-url">https://antecedentes.policia.gov.co:7005/WebJudicial/</div></a>""",unsafe_allow_html=True)
-    st.markdown("---"); st.markdown("### 📝 Registrar resultado de consulta manual")
-    with st.form("frm_policia",clear_on_submit=True):
-        c1,c2=st.columns(2)
-        tid=c1.selectbox("Tipo ID",["CC","NIT","CE","PAS"]); nid=c2.text_input("Número de identificación")
-        nom=st.text_input("Nombre completo")
-        res=st.radio("Resultado",["SIN ANTECEDENTES","CON ANTECEDENTES","NO SE PUDO VERIFICAR"],horizontal=True)
-        obs=st.text_area("Observaciones",height=80); ok=st.form_submit_button("💾 Guardar",type="primary")
+      <div class="ext-url">antecedentes.policia.gov.co</div></a>""", unsafe_allow_html=True)
+    st.markdown("---")
+    st.markdown("### 📝 Registrar resultado de consulta manual")
+    with st.form("frm_policia", clear_on_submit=True):
+        c1, c2 = st.columns(2)
+        tid = c1.selectbox("Tipo ID", ["CC","NIT","CE","PAS"],
+                           index=["CC","NIT","CE","PAS"].index(uc["tipo_id"]) if uc["tipo_id"] in ["CC","NIT","CE","PAS"] else 0)
+        nid = c2.text_input("Número de identificación", value=uc["nro_id"])
+        nom = st.text_input("Nombre completo", value=uc["nombre"])
+        res = st.radio("Resultado", ["SIN ANTECEDENTES","CON ANTECEDENTES","NO SE PUDO VERIFICAR"], horizontal=True)
+        obs = st.text_area("Observaciones", height=80)
+        ok  = st.form_submit_button("💾 Guardar registro", type="primary")
     if ok:
         if not nid or not nom: st.warning("Completa todos los campos.")
         else:
-            log_q("POLICÍA",tid,nid,nom,res)
-            if res=="SIN ANTECEDENTES": st.success("✅ Sin antecedentes.")
-            elif res=="CON ANTECEDENTES": st.error("🚨 Con antecedentes.")
-            else: st.warning("⚠️ Verificación pendiente.")
+            log_q("POLICÍA", tid, nid, nom, res)
+            if res == "SIN ANTECEDENTES":    st.success("✅ Sin antecedentes.")
+            elif res == "CON ANTECEDENTES":  st.error("🚨 Con antecedentes.")
+            else:                            st.warning("⚠️ Verificación pendiente.")
             if PDF_DISPONIBLE:
-                pp=generar_pdf_manual(tid,nid,nom,"POLICÍA",res,observacion=obs,usuario=st.session_state.user)
-                st.download_button("📄 Certificado PDF",data=pp,file_name=f"policia_{nid}_{date.today()}.pdf",mime="application/pdf")
+                pp = generar_pdf_manual(tid, nid, nom, "POLICÍA", res, observacion=obs,
+                                        usuario=st.session_state.user, watermark=not LISTAS_REALES)
+                st.download_button("📄 Certificado PDF", data=pp,
+                                   file_name=f"policia_{nid}_{date.today()}.pdf", mime="application/pdf")
 
 def mod_procuraduria():
     st.markdown("## ⚖️ Antecedentes Disciplinarios — Procuraduría General")
-    st.info("Esta fuente usa CAPTCHA. Accede al portal y registra el resultado aquí.",icon="ℹ️")
+    st.info("Esta fuente usa CAPTCHA. Accede al portal y registra el resultado aquí.", icon="ℹ️")
+
+    uc = st.session_state.ultima_consulta
+    if uc["nombre"] or uc["nro_id"]:
+        st.success(f"✅ Datos precargados desde última consulta: **{uc['nombre'] or uc['nro_id']}**")
+
     st.markdown("""<a class="ext-link" href="https://www.procuraduria.gov.co/Pages/Consulta-de-Antecedentes.aspx" target="_blank">
       <div class="ext-title">🔗 Procuraduría General — Antecedentes Disciplinarios</div>
-      <div class="ext-url">https://www.procuraduria.gov.co/Pages/Consulta-de-Antecedentes.aspx</div></a>""",unsafe_allow_html=True)
-    st.markdown("---"); st.markdown("### 📝 Registrar resultado de consulta manual")
-    with st.form("frm_procu",clear_on_submit=True):
-        c1,c2=st.columns(2)
-        tid=c1.selectbox("Tipo ID",["CC","NIT","CE","PAS"]); nid=c2.text_input("Número de identificación")
-        nom=st.text_input("Nombre completo")
-        res=st.radio("Resultado",["SIN SANCIONES DISCIPLINARIAS","CON SANCIONES DISCIPLINARIAS","NO SE PUDO VERIFICAR"],horizontal=True)
-        obs=st.text_area("Observaciones",height=80); ok=st.form_submit_button("💾 Guardar",type="primary")
+      <div class="ext-url">procuraduria.gov.co</div></a>""", unsafe_allow_html=True)
+    st.markdown("---")
+    st.markdown("### 📝 Registrar resultado de consulta manual")
+    with st.form("frm_procu", clear_on_submit=True):
+        c1, c2 = st.columns(2)
+        tid = c1.selectbox("Tipo ID", ["CC","NIT","CE","PAS"],
+                           index=["CC","NIT","CE","PAS"].index(uc["tipo_id"]) if uc["tipo_id"] in ["CC","NIT","CE","PAS"] else 0)
+        nid = c2.text_input("Número de identificación", value=uc["nro_id"])
+        nom = st.text_input("Nombre completo", value=uc["nombre"])
+        res = st.radio("Resultado", ["SIN SANCIONES DISCIPLINARIAS","CON SANCIONES DISCIPLINARIAS","NO SE PUDO VERIFICAR"], horizontal=True)
+        obs = st.text_area("Observaciones", height=80)
+        ok  = st.form_submit_button("💾 Guardar registro", type="primary")
     if ok:
         if not nid or not nom: st.warning("Completa todos los campos.")
         else:
-            log_q("PROCURADURÍA",tid,nid,nom,res)
-            if "SIN" in res: st.success("✅ Sin sanciones.")
+            log_q("PROCURADURÍA", tid, nid, nom, res)
+            if "SIN" in res:   st.success("✅ Sin sanciones.")
             elif "CON" in res: st.error("🚨 Con sanciones disciplinarias.")
-            else: st.warning("⚠️ Verificación pendiente.")
+            else:              st.warning("⚠️ Verificación pendiente.")
             if PDF_DISPONIBLE:
-                pp=generar_pdf_manual(tid,nid,nom,"PROCURADURÍA",res,observacion=obs,usuario=st.session_state.user)
-                st.download_button("📄 Certificado PDF",data=pp,file_name=f"procuraduria_{nid}_{date.today()}.pdf",mime="application/pdf")
+                pp = generar_pdf_manual(tid, nid, nom, "PROCURADURÍA", res, observacion=obs,
+                                        usuario=st.session_state.user, watermark=not LISTAS_REALES)
+                st.download_button("📄 Certificado PDF", data=pp,
+                                   file_name=f"procuraduria_{nid}_{date.today()}.pdf", mime="application/pdf")
+
+def mod_otras_fuentes():
+    st.markdown("## 🔗 Otras Fuentes de Consulta")
+    st.caption("Accede directamente a cada fuente oficial — los datos de tu última consulta están precargados en los links.")
+
+    uc  = st.session_state.ultima_consulta
+    nom = _uparse.quote(uc["nombre"]) if uc["nombre"] else ""
+    nid = _uparse.quote(uc["nro_id"]) if uc["nro_id"] else ""
+
+    if uc["nombre"] or uc["nro_id"]:
+        st.success(f"✅ Última consulta: **{uc['nombre'] or uc['nro_id']}** — los links incluyen el nombre precargado donde es posible.")
+
+    st.markdown("### 🏛️ Fuentes judiciales y disciplinarias")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown(f"""
+        <a class="ext-link" href="https://consultaprocesos.ramajudicial.gov.co/procesos/numeroRadicacion" target="_blank">
+          <div class="ext-title">⚖️ Rama Judicial — Consulta de Procesos</div>
+          <div class="ext-desc">Consulta de procesos judiciales por nombre, NIT o número de radicación.</div>
+          <div class="ext-url">ramajudicial.gov.co</div>
+        </a>
+        <a class="ext-link" href="https://www.fiscalia.gov.co/colombia/?s={nom}" target="_blank">
+          <div class="ext-title">🏛️ Fiscalía General de la Nación</div>
+          <div class="ext-desc">Búsqueda de boletines, capturas, imputados y condenas.</div>
+          <div class="ext-url">fiscalia.gov.co/?s={uc['nombre'] or '(nombre)'}</div>
+        </a>
+        """, unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"""
+        <a class="ext-link" href="https://www.procuraduria.gov.co/Pages/Consulta-de-Antecedentes.aspx" target="_blank">
+          <div class="ext-title">📋 Procuraduría — Antecedentes Disciplinarios</div>
+          <div class="ext-desc">Sanciones disciplinarias de servidores públicos y particulares.</div>
+          <div class="ext-url">procuraduria.gov.co</div>
+        </a>
+        <a class="ext-link" href="https://antecedentes.policia.gov.co:7005/WebJudicial/" target="_blank">
+          <div class="ext-title">👮 Policía Nacional — Certificado Judicial</div>
+          <div class="ext-desc">Antecedentes judiciales de personas naturales.</div>
+          <div class="ext-url">antecedentes.policia.gov.co</div>
+        </a>
+        """, unsafe_allow_html=True)
+
+    st.markdown("### 🏢 Fuentes empresariales y registros")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown(f"""
+        <a class="ext-link" href="https://ruesfront.rues.org.co/" target="_blank">
+          <div class="ext-title">🏢 RUES — Registro Único Empresarial</div>
+          <div class="ext-desc">Consulta de empresas, representantes legales y estados societarios en Colombia.</div>
+          <div class="ext-url">rues.org.co</div>
+        </a>
+        <a class="ext-link" href="https://ruaf.sispro.gov.co/Filtro.aspx" target="_blank">
+          <div class="ext-title">📋 RUAF — Registro Único de Afiliados</div>
+          <div class="ext-desc">Verificación de afiliación a seguridad social y empresas ficticias.</div>
+          <div class="ext-url">ruaf.sispro.gov.co</div>
+        </a>
+        """, unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"""
+        <a class="ext-link" href="https://www.contraloria.gov.co/contraloria/consultasRegistro/consultaBoletinResponsables" target="_blank">
+          <div class="ext-title">🔍 Contraloría — Boletín de Responsables</div>
+          <div class="ext-desc">Personas con responsabilidad fiscal — inhabilitadas para contratos públicos.</div>
+          <div class="ext-url">contraloria.gov.co</div>
+        </a>
+        <a class="ext-link" href="https://www1.funcionpublica.gov.co/fdci/consultaCiudadana/consultaPEP" target="_blank">
+          <div class="ext-title">🎖️ Función Pública — PEPs Colombia</div>
+          <div class="ext-desc">Lista oficial de Personas Expuestas Políticamente (Decreto 830/2021).</div>
+          <div class="ext-url">funcionpublica.gov.co</div>
+        </a>
+        """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("### 📝 Registrar resultado de consulta en fuente externa")
+    with st.form("frm_otras", clear_on_submit=True):
+        c1, c2, c3 = st.columns(3)
+        fuente_sel = c1.selectbox("Fuente consultada", [
+            "Rama Judicial","RUES","RUAF","Contraloría","Función Pública / PEPs","Otra"
+        ])
+        tid = c2.selectbox("Tipo ID", ["CC","NIT","CE","PAS"],
+                           index=["CC","NIT","CE","PAS"].index(uc["tipo_id"]) if uc["tipo_id"] in ["CC","NIT","CE","PAS"] else 0)
+        nid = c3.text_input("Número de identificación", value=uc["nro_id"])
+        nom = st.text_input("Nombre completo", value=uc["nombre"])
+        res = st.radio("Resultado", ["SIN HALLAZGOS","CON HALLAZGOS","NO SE PUDO VERIFICAR"], horizontal=True)
+        obs = st.text_area("Observaciones / detalle del hallazgo", height=80)
+        ok  = st.form_submit_button("💾 Guardar registro", type="primary")
+    if ok:
+        if not nid or not nom: st.warning("Completa todos los campos.")
+        else:
+            log_q(fuente_sel.upper(), tid, nid, nom, res)
+            if "SIN" in res:   st.success(f"✅ {fuente_sel} — Sin hallazgos.")
+            elif "CON" in res: st.error(f"🚨 {fuente_sel} — Con hallazgos. Escalar al Oficial de Cumplimiento.")
+            else:              st.warning(f"⚠️ {fuente_sel} — Verificación pendiente.")
+            if PDF_DISPONIBLE:
+                pp = generar_pdf_manual(tid, nid, nom, fuente_sel, res,
+                                        observacion=obs, usuario=st.session_state.user,
+                                        watermark=not LISTAS_REALES)
+                nombre_arch = fuente_sel.lower().replace(" ","_").replace("/","_")
+                st.download_button("📄 Certificado PDF", data=pp,
+                                   file_name=f"{nombre_arch}_{nid}_{date.today()}.pdf",
+                                   mime="application/pdf")
 
 LOGS_DEMO=[
     {"fecha_hora":"2024-06-10 08:14","usuario":"analista1","modulo":"UNIFICADA","tipo_id":"CC","nro_id":"12345678","nombre":"JUAN CARLOS RODRIGUEZ GOMEZ","resultado":"EXACTA"},
@@ -557,32 +741,59 @@ def mod_logs():
 
 def mod_stats():
     st.markdown("## 📊 Estadísticas de uso")
+    todos_logs = LOGS_DEMO + st.session_state.logs
+    df_logs = pd.DataFrame(todos_logs)
+    df_logs["fecha_hora"] = pd.to_datetime(df_logs["fecha_hora"])
+
+    mes_actual = date.today().replace(day=1)
+    df_mes = df_logs[df_logs["fecha_hora"].dt.date >= mes_actual]
+
+    ALERTAS = {"EXACTA","APROXIMADA","CON ANTECEDENTES","CON SANCIONES DISCIPLINARIAS","CON HALLAZGOS"}
+    def es_alerta(r): return any(a in str(r).upper() for a in ALERTAS) or "NOTICIAS ADVERSAS" in str(r).upper()
+
+    total_mes  = len(df_mes)
+    alertas    = int(df_logs["resultado"].apply(es_alerta).sum())
+    usuarios_a = int(df_logs["usuario"].nunique())
+    masivos    = int((df_logs["modulo"] == "MASIVO").sum())
+
     c1,c2,c3,c4=st.columns(4)
-    c1.markdown('<div class="metric-box"><div class="metric-num">172</div><div class="metric-label">Consultas este mes</div></div>',unsafe_allow_html=True)
-    c2.markdown('<div class="metric-box"><div class="metric-num">38</div><div class="metric-label">🚨 Alertas generadas</div></div>',unsafe_allow_html=True)
-    c3.markdown('<div class="metric-box"><div class="metric-num">3</div><div class="metric-label">Usuarios activos</div></div>',unsafe_allow_html=True)
-    c4.markdown('<div class="metric-box"><div class="metric-num">16</div><div class="metric-label">Cargas masivas</div></div>',unsafe_allow_html=True)
+    c1.markdown(f'<div class="metric-box"><div class="metric-num">{total_mes}</div><div class="metric-label">Consultas este mes</div></div>',unsafe_allow_html=True)
+    c2.markdown(f'<div class="metric-box"><div class="metric-num">{alertas}</div><div class="metric-label">🚨 Alertas generadas</div></div>',unsafe_allow_html=True)
+    c3.markdown(f'<div class="metric-box"><div class="metric-num">{usuarios_a}</div><div class="metric-label">Usuarios activos</div></div>',unsafe_allow_html=True)
+    c4.markdown(f'<div class="metric-box"><div class="metric-num">{masivos}</div><div class="metric-label">Cargas masivas</div></div>',unsafe_allow_html=True)
     st.markdown("---")
-    dia=pd.DataFrame({"Fecha":pd.date_range("2024-06-01",periods=10,freq="D"),
-        "Búsqueda Unificada":[12,18,9,22,15,30,8,25,19,14],"Policía":[5,8,4,9,6,12,3,10,7,6],
-        "Procuraduría":[3,5,2,6,4,8,2,7,5,4],"Noticias":[8,12,6,14,10,18,5,16,11,9]}).set_index("Fecha")
-    res=pd.DataFrame({"Resultado":["Sin coincidencia","Exacta","Aproximada","Antecedentes","Noticias adversas"],
-                      "Cantidad":[134,18,12,8,14]}).set_index("Resultado")
+
     co1,co2=st.columns(2)
-    with co1: st.markdown("#### Consultas diarias"); st.line_chart(dia,height=220)
-    with co2: st.markdown("#### Distribución resultados"); st.bar_chart(res,height=220)
+    with co1:
+        st.markdown("#### Consultas por módulo")
+        por_mod = df_logs.groupby("modulo").size().rename("Consultas")
+        st.bar_chart(por_mod, height=220)
+    with co2:
+        st.markdown("#### Distribución de resultados")
+        df_logs["tipo_resultado"] = df_logs["resultado"].apply(
+            lambda r: "Alerta" if es_alerta(r) else "Sin coincidencia")
+        dist = df_logs["tipo_resultado"].value_counts().rename("Cantidad")
+        st.bar_chart(dist, height=220)
+
     st.markdown("---")
     co1,co2=st.columns(2)
     with co1:
         st.markdown("#### Por usuario")
-        st.dataframe(pd.DataFrame({"Usuario":["analista1","consultor","admin"],"Consultas":[87,42,23],"Alertas":[21,9,8]}),
-            use_container_width=True,hide_index=True)
+        por_usr = (df_logs.groupby("usuario")
+                   .agg(Consultas=("resultado","count"),
+                        Alertas=("resultado", lambda x: x.apply(es_alerta).sum()))
+                   .reset_index().rename(columns={"usuario":"Usuario"}))
+        st.dataframe(por_usr, use_container_width=True, hide_index=True)
     with co2:
-        st.markdown("#### Listas con más alertas")
-        st.dataframe(pd.DataFrame({"Lista":["OFAC SDN","ONU","TERRORISTAS UE","PEP","DECLARADO PEP"],"Alertas":[22,8,4,5,3]}),
-            use_container_width=True,hide_index=True)
+        st.markdown("#### Últimas 10 consultas")
+        st.dataframe(
+            df_logs.sort_values("fecha_hora", ascending=False)
+                   .head(10)[["fecha_hora","usuario","modulo","nombre","resultado"]]
+                   .rename(columns={"fecha_hora":"Fecha","usuario":"Usuario",
+                                    "modulo":"Módulo","nombre":"Nombre","resultado":"Resultado"}),
+            use_container_width=True, hide_index=True)
     st.markdown("---")
-    st.download_button("📥 Exportar reporte",data=a_excel(dia.reset_index()),
+    st.download_button("📥 Exportar registros", data=a_excel(df_logs.astype(str)),
         file_name=f"estadisticas_{date.today()}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
@@ -592,7 +803,6 @@ else:
     sidebar()
     m=st.session_state.menu
     if   "Unificada"    in m: mod_unificada()
-    elif "Policia" in m or "Policía" in m: mod_policia()
-    elif "Procuraduria" in m or "Procuraduría" in m: mod_procuraduria()
+    elif "Otras"        in m: mod_otras_fuentes()
     elif "Registros"    in m: mod_logs()
     elif "Estadisticas" in m or "Estadísticas" in m: mod_stats()

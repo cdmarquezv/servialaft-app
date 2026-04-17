@@ -228,31 +228,63 @@ if not ue_ok:
     print("      ✘ No se pudo descargar lista UE")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 5. PEPs COLOMBIA — desde peps.xlsx si existe
+# 5. PEPs COLOMBIA — datos.gov.co (Función Pública) con fallback a peps.xlsx
 # ─────────────────────────────────────────────────────────────────────────────
-print("\n[5/5] PEPs Colombia...")
-if os.path.exists("peps.xlsx"):
-    try:
-        import openpyxl
-        wb = openpyxl.load_workbook("peps.xlsx")
-        ws = wb.active
-        headers = [str(c.value or "").lower().strip() for c in next(ws.iter_rows())]
-        cp = 0
-        for row in ws.iter_rows(min_row=2, values_only=True):
-            rd = dict(zip(headers, row))
-            n_p = str(rd.get("nombre","") or "").strip()
-            id_p = str(rd.get("nro_id","") or rd.get("identificacion","") or "").strip()
-            ti_p = str(rd.get("tipo_id","") or "CC").upper().strip()
-            cargo_p = str(rd.get("cargo","") or "").strip()
-            if n_p:
-                agregar(n_p, "PEP", "PEPs Colombia", [cargo_p or "PEP"],
-                        [{"tipo": ti_p, "numero": id_p}] if id_p else [])
-                cp += 1
-        print(f"      ✔ {cp:,} PEPs desde peps.xlsx")
-    except Exception as e:
-        print(f"      ✘ {e}")
-else:
-    print("      ℹ  peps.xlsx no encontrado — colócalo en la misma carpeta para incluirlo")
+print("\n[5/5] PEPs Colombia — datos.gov.co (Función Pública)...")
+_PEPS_API = "https://www.datos.gov.co/resource/3qxn-uc22.json"
+_PEPS_LIMIT = 50000  # Socrata permite hasta 50 000 filas por petición
+peps_cargados = False
+
+try:
+    resp_peps = requests.get(
+        _PEPS_API,
+        params={"$limit": _PEPS_LIMIT, "$order": "nombre_pep"},
+        headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
+        timeout=60,
+    )
+    resp_peps.raise_for_status()
+    rows_peps = resp_peps.json()
+    cp = 0
+    for row in rows_peps:
+        n_p  = str(row.get("nombre_pep", "") or "").strip()
+        id_p = str(row.get("numero_documento", "") or "").strip().replace("-", "").replace(" ", "")
+        cargo   = str(row.get("denominacion_cargo", "") or "").strip()
+        entidad = str(row.get("nombre_entidad", "") or "").strip()
+        detalle = f"{cargo} — {entidad}" if cargo and entidad else (cargo or entidad)
+        if n_p:
+            agregar(n_p, "PEP", "PEPs Colombia", [cargo or "PEP"],
+                    [{"tipo": "CC", "numero": id_p}] if id_p else [],
+                    uid=f"PEP-SIGEP-{id_p or cp}")
+            cp += 1
+    print(f"      ✔ {cp:,} PEPs desde datos.gov.co (Función Pública)")
+    peps_cargados = True
+except Exception as e:
+    print(f"      ✘ datos.gov.co no disponible: {e}")
+
+# Fallback: peps.xlsx local
+if not peps_cargados:
+    if os.path.exists("peps.xlsx"):
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook("peps.xlsx")
+            ws = wb.active
+            headers = [str(c.value or "").lower().strip() for c in next(ws.iter_rows())]
+            cp = 0
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                rd = dict(zip(headers, row))
+                n_p   = str(rd.get("nombre","") or "").strip()
+                id_p  = str(rd.get("nro_id","") or rd.get("identificacion","") or "").strip()
+                ti_p  = str(rd.get("tipo_id","") or "CC").upper().strip()
+                cargo_p = str(rd.get("cargo","") or "").strip()
+                if n_p:
+                    agregar(n_p, "PEP", "PEPs Colombia", [cargo_p or "PEP"],
+                            [{"tipo": ti_p, "numero": id_p}] if id_p else [])
+                    cp += 1
+            print(f"      ✔ {cp:,} PEPs desde peps.xlsx (fallback)")
+        except Exception as e:
+            print(f"      ✘ peps.xlsx: {e}")
+    else:
+        print("      ℹ  Sin fuente de PEPs disponible — se usarán las entradas prioritarias")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 6. ENTRADAS PRIORITARIAS — Colombianos conocidos en listas

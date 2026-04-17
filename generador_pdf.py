@@ -13,10 +13,14 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY, TA_RIGHT
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    HRFlowable, KeepTogether
+    HRFlowable, Image as RLImage
 )
-from reportlab.graphics.shapes import Drawing, Rect, String
-from reportlab.graphics import renderPDF
+
+try:
+    import qrcode
+    _QR_OK = True
+except ImportError:
+    _QR_OK = False
 
 # ─── Paleta corporativa ───────────────────────────────────────────────────────
 AZUL_OSCURO  = colors.HexColor("#0F1B2D")
@@ -34,6 +38,20 @@ AMARILLO_BG  = colors.HexColor("#FEF3C7")
 BLANCO       = colors.white
 
 W, H = letter  # 612 x 792 pts
+
+
+# ─── QR helper ────────────────────────────────────────────────────────────────
+def _qr_image(texto, size=38):
+    if not _QR_OK:
+        return None
+    qr = qrcode.QRCode(version=1, box_size=2, border=1,
+                       error_correction=qrcode.constants.ERROR_CORRECT_M)
+    qr.add_data(texto)
+    qr.make(fit=True)
+    buf = io.BytesIO()
+    qr.make_image(fill_color="black", back_color="white").save(buf, format="PNG")
+    buf.seek(0)
+    return RLImage(buf, width=size, height=size)
 
 
 # ─── Estilos ─────────────────────────────────────────────────────────────────
@@ -89,53 +107,58 @@ def get_styles():
 
 
 # ─── Header y footer ─────────────────────────────────────────────────────────
-def header_footer(canvas, doc):
-    canvas.saveState()
+def make_header_footer(watermark=False):
+    """Devuelve la función de header/footer, opcionalmente con sello DEMO."""
+    def _hf(canvas, doc):
+        canvas.saveState()
 
-    # ── HEADER ────────────────────────────────────────────────────────────
-    # Banda superior azul oscuro
-    canvas.setFillColor(AZUL_OSCURO)
-    canvas.rect(0, H - 52, W, 52, fill=1, stroke=0)
+        # ── HEADER ────────────────────────────────────────────────────────────
+        BAND = 66  # altura de la banda superior
+        canvas.setFillColor(AZUL_OSCURO)
+        canvas.rect(0, H - BAND, W, BAND, fill=1, stroke=0)
 
-    # Línea dorada decorativa
-    canvas.setStrokeColor(colors.HexColor("#F59E0B"))
-    canvas.setLineWidth(2)
-    canvas.line(0, H - 52, W, H - 52)
+        canvas.setStrokeColor(colors.HexColor("#F59E0B"))
+        canvas.setLineWidth(2)
+        canvas.line(0, H - BAND, W, H - BAND)
 
-    # Logo / Nombre empresa
-    canvas.setFillColor(BLANCO)
-    canvas.setFont("Helvetica-Bold", 15)
-    canvas.drawString(30, H - 28, "SERVIALAFT SAS")
-    canvas.setFont("Helvetica", 8)
-    canvas.drawString(30, H - 41, "Sistema de Consulta Listas Vinculantes")
+        canvas.setFillColor(BLANCO)
+        canvas.setFont("Helvetica-Bold", 16)
+        canvas.drawString(32, H - 30, "SERVIALAFT SAS")
+        canvas.setFont("Helvetica", 9)
+        canvas.drawString(32, H - 46, "Sistema de Consulta de Listas Vinculantes · CruzaListas")
 
-    # Fecha a la derecha
-    canvas.setFont("Helvetica", 8)
-    canvas.setFillColor(colors.HexColor("#93C5FD"))
-    canvas.drawRightString(W - 30, H - 28, f"Fecha: {date.today():%d/%m/%Y}")
-    canvas.drawRightString(W - 30, H - 41, f"Hora: {datetime.now():%H:%M} (hora local)")
+        canvas.setFont("Helvetica", 8.5)
+        canvas.setFillColor(colors.HexColor("#93C5FD"))
+        canvas.drawRightString(W - 32, H - 30, f"Fecha: {date.today():%d/%m/%Y}")
+        canvas.drawRightString(W - 32, H - 46, f"Hora: {datetime.now():%H:%M} (hora local)")
 
-    # ── FOOTER ────────────────────────────────────────────────────────────
-    canvas.setFillColor(AZUL_OSCURO)
-    canvas.rect(0, 0, W, 36, fill=1, stroke=0)
+        # ── FOOTER ────────────────────────────────────────────────────────────
+        canvas.setFillColor(AZUL_OSCURO)
+        canvas.rect(0, 0, W, 36, fill=1, stroke=0)
 
-    canvas.setFont("Helvetica", 7)
-    canvas.setFillColor(colors.HexColor("#93C5FD"))
-    canvas.drawCentredString(
-        W / 2, 22,
-        "SERVIALAFT SAS  ·  NIT: 900.XXX.XXX-X  ·  Colombia"
-    )
-    canvas.drawCentredString(
-        W / 2, 12,
-        "Este documento es generado automáticamente y tiene validez como certificado de consulta."
-    )
+        canvas.setFont("Helvetica", 7)
+        canvas.setFillColor(colors.HexColor("#93C5FD"))
+        canvas.drawCentredString(W / 2, 22,
+            "SERVIALAFT SAS  ·  NIT: 900.XXX.XXX-X  ·  Colombia")
+        canvas.drawCentredString(W / 2, 12,
+            "Este documento es generado automáticamente y tiene validez como certificado de consulta.")
 
-    # Número de página
-    canvas.setFont("Helvetica", 7.5)
-    canvas.setFillColor(colors.HexColor("#6B7280"))
-    canvas.drawRightString(W - 20, 22, f"Pág. {doc.page}")
+        canvas.setFont("Helvetica", 7.5)
+        canvas.setFillColor(colors.HexColor("#6B7280"))
+        canvas.drawRightString(W - 20, 22, f"Pág. {doc.page}")
 
-    canvas.restoreState()
+        # ── WATERMARK DEMO ────────────────────────────────────────────────────
+        if watermark:
+            canvas.setFillColor(colors.Color(0.75, 0.75, 0.75, 0.18))
+            canvas.setFont("Helvetica-Bold", 90)
+            canvas.saveState()
+            canvas.translate(W / 2, H / 2)
+            canvas.rotate(45)
+            canvas.drawCentredString(0, 0, "DEMO")
+            canvas.restoreState()
+
+        canvas.restoreState()
+    return _hf
 
 
 # ─── Tabla de datos del consultado ───────────────────────────────────────────
@@ -260,111 +283,262 @@ def caja_resultado(tiene_coincidencia, nivel=None):
     return t
 
 
-# ─── Texto de certificación ───────────────────────────────────────────────────
+# ─── Textos de certificación ─────────────────────────────────────────────────
 CERT_SIN = (
     "SERVIALAFT SAS certifica que, en la fecha indicada en este documento, se realizó "
     "la consulta de las listas vinculantes nacionales e internacionales disponibles en el "
-    "sistema, incluyendo las listas OFAC SDN, Resoluciones del Consejo de Seguridad de la "
-    "ONU, Personas Expuestas Políticamente (PEPs) y listas internas, para el sujeto "
-    "identificado en el presente certificado. <b>El resultado de dicha consulta es NEGATIVO: "
-    "el sujeto NO figura en ninguna de las listas consultadas</b> con el nivel de similitud "
-    "configurado (SimiliScore™). Este certificado es válido únicamente para la fecha y hora "
-    "de expedición, y debe renovarse periódicamente según la política de debida diligencia "
-    "de cada entidad."
+    "sistema CruzaListas, incluyendo OFAC SDN, Terroristas EE.UU., Resoluciones del Consejo "
+    "de Seguridad de la ONU, Sanciones UE, Personas Expuestas Políticamente (PEPs Colombia) "
+    "y búsqueda de noticias adversas en Google News y Fiscalía General de la Nación. "
+    "<b>El resultado de dicha consulta es NEGATIVO: el sujeto NO figura en ninguna de las "
+    "listas consultadas</b> con el nivel de similitud configurado (SimiliScore™). "
+    "Este certificado es válido únicamente para la fecha y hora de expedición, y debe "
+    "renovarse periódicamente según la política de debida diligencia de cada entidad."
 )
 
 CERT_CON = (
     "SERVIALAFT SAS certifica que, en la fecha indicada en este documento, se realizó "
     "la consulta de las listas vinculantes nacionales e internacionales disponibles en el "
-    "sistema. <b>El resultado de dicha consulta es POSITIVO: el sujeto identificado FIGURA "
-    "en una o más listas vinculantes</b>, tal como se detalla en la sección anterior. "
-    "Se recomienda proceder conforme al Manual SARLAFT de la entidad, escalar al oficial "
-    "de cumplimiento y abstenerse de iniciar o continuar la relación comercial hasta tanto "
-    "se haya realizado la debida diligencia ampliada requerida."
+    "sistema CruzaListas. <b>El resultado de dicha consulta es POSITIVO: el sujeto "
+    "identificado FIGURA en una o más listas vinculantes</b>, tal como se detalla en la "
+    "sección anterior. Se recomienda proceder conforme al Manual SARLAFT de la entidad, "
+    "escalar al oficial de cumplimiento y abstenerse de iniciar o continuar la relación "
+    "comercial hasta tanto se haya realizado la debida diligencia ampliada requerida."
 )
+
+# ─── Tabla de listas consultadas ─────────────────────────────────────────────
+LISTAS_CONSULTADAS = [
+    ("OFAC SDN",          "U.S. Department of the Treasury",    "NARCOTICS · SDGT · EO14059 · otros"),
+    ("Terroristas EE.UU.","U.S. Dept. of Treasury — OFAC",      "SDGT · FTO · TALIBAN · DPRK2"),
+    ("ONU",               "Consejo de Seguridad — Naciones Unidas","Res. 1267 · 1988 · 2341 · otros"),
+    ("Sanciones UE",      "Comisión Europea",                   "Lista Consolidada UE"),
+    ("PEPs Colombia",     "Función Pública — SIGEP Colombia",   "Decreto 830/2021"),
+    ("Google News",       "Google News RSS",                    "Noticias adversas en tiempo real"),
+    ("Fiscalía",          "Fiscalía General de la Nación",      "Boletines oficiales y capturas"),
+]
+
+def tabla_listas_consultadas():
+    """Tabla con todas las fuentes consultadas."""
+    _th = ParagraphStyle("lth", fontSize=7.5, fontName="Helvetica-Bold", textColor=BLANCO, leading=10)
+    _tc = ParagraphStyle("ltc", fontSize=7.5, fontName="Helvetica",      textColor=GRIS_TEXTO, leading=10)
+    _tn = ParagraphStyle("ltn", fontSize=7.5, fontName="Helvetica-Bold", textColor=AZUL_MED,  leading=10, alignment=TA_CENTER)
+
+    data = [[Paragraph("#", _th), Paragraph("LISTA / FUENTE", _th),
+             Paragraph("ENTIDAD EMISORA", _th), Paragraph("PROGRAMAS / ALCANCE", _th)]]
+    for i, (lista, entidad, alcance) in enumerate(LISTAS_CONSULTADAS, 1):
+        data.append([Paragraph(str(i), _tn), Paragraph(lista, _tc),
+                     Paragraph(entidad, _tc), Paragraph(alcance, _tc)])
+
+    t = Table(data, colWidths=[20, 110, 180, 206])
+    t.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, 0),  AZUL_OSCURO),
+        ("FONTSIZE",      (0, 0), (-1, -1), 7.5),
+        ("GRID",          (0, 0), (-1, -1), 0.4, GRIS_BORDE),
+        ("TOPPADDING",    (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 5),
+        ("ALIGN",         (0, 0), (0, -1),  "CENTER"),
+        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ("ROWBACKGROUND", (0, 1), (-1, -1), [GRIS_SUAVE, BLANCO]),
+    ]))
+    return t
+
+
+# ─── Sección de noticias en PDF ───────────────────────────────────────────────
+def seccion_noticias_pdf(story, S, nombre, noticias_google, noticias_fiscalia, num_sec):
+    """Agrega sección de noticias adversas al PDF."""
+    story.append(Paragraph(f"{num_sec}. BÚSQUEDA DE NOTICIAS ADVERSAS", S["seccion"]))
+    story.append(HRFlowable(width="100%", thickness=0.5, color=GRIS_BORDE, spaceAfter=6))
+
+    # Parámetros de búsqueda
+    terminos = "lavado · narcotrafico · corrupcion · fraude · capturado · investigado · condenado · sancionado · terrorismo · imputado · extorsion · peculado"
+    params_data = [
+        ["PARÁMETRO",          "VALOR"],
+        ["Nombre buscado",      nombre.upper()],
+        ["Método de búsqueda", 'Nombre completo entre comillas — coincidencia exacta de frase'],
+        ["Términos de riesgo",  terminos],
+        ["Fuentes consultadas", "Google News RSS · Fiscalía General (RSS WordPress)"],
+        ["Cobertura temporal",  "Últimas noticias indexadas"],
+    ]
+    pt = Table(params_data, colWidths=[160, 356])
+    pt.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, 0),  AZUL_MED),
+        ("TEXTCOLOR",     (0, 0), (-1, 0),  BLANCO),
+        ("FONTNAME",      (0, 0), (-1, 0),  "Helvetica-Bold"),
+        ("FONTSIZE",      (0, 0), (-1, -1), 7.5),
+        ("GRID",          (0, 0), (-1, -1), 0.4, GRIS_BORDE),
+        ("TOPPADDING",    (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 6),
+        ("ROWBACKGROUND", (0, 1), (-1, -1), [GRIS_SUAVE, BLANCO]),
+    ]))
+    story.append(pt)
+    story.append(Spacer(1, 8))
+
+    # Resultados Google News
+    story.append(Paragraph("<b>Google News — Noticias adversas</b>", ParagraphStyle(
+        "sh", fontSize=9, fontName="Helvetica-Bold", textColor=AZUL_MED, spaceAfter=4)))
+
+    todas_noticias = list(noticias_google or [])
+    adversas_g = [n for n in todas_noticias if n.get("riesgo")]
+    neutras_g  = [n for n in todas_noticias if not n.get("riesgo")]
+
+    if not todas_noticias:
+        story.append(Paragraph(
+            "Sin noticias adversas encontradas en Google News para el nombre consultado.",
+            ParagraphStyle("ok", fontSize=8, fontName="Helvetica", textColor=VERDE, spaceAfter=4)
+        ))
+    else:
+        if adversas_g:
+            story.append(Paragraph(
+                f"<b>🚨 {len(adversas_g)} noticia(s) con indicadores de riesgo:</b>",
+                ParagraphStyle("alerta", fontSize=8.5, fontName="Helvetica-Bold",
+                               textColor=ROJO, spaceAfter=3)
+            ))
+            for n in adversas_g:
+                story.append(Paragraph(
+                    f"• <b>{n.get('titulo','')}</b> | {n.get('fuente','—')} | {n.get('fecha','—')}",
+                    ParagraphStyle("ni", fontSize=7.5, fontName="Helvetica",
+                                   textColor=GRIS_TEXTO, spaceAfter=2, leftIndent=10)
+                ))
+        if neutras_g:
+            story.append(Spacer(1, 4))
+            story.append(Paragraph(
+                f"Otras {len(neutras_g)} noticias encontradas sin palabras de riesgo directas.",
+                ParagraphStyle("neu", fontSize=8, fontName="Helvetica",
+                               textColor=GRIS_TEXTO, spaceAfter=2)
+            ))
+
+    story.append(Spacer(1, 8))
+
+    # Resultados Fiscalía
+    story.append(Paragraph("<b>Fiscalía General de la Nación — Boletines oficiales</b>",
+        ParagraphStyle("sh2", fontSize=9, fontName="Helvetica-Bold",
+                       textColor=AZUL_MED, spaceAfter=4)))
+
+    nf = list(noticias_fiscalia or [])
+    if not nf:
+        story.append(Paragraph(
+            "Sin resultados en boletines oficiales de la Fiscalía General para el nombre consultado.",
+            ParagraphStyle("okf", fontSize=8, fontName="Helvetica",
+                           textColor=VERDE, spaceAfter=4)
+        ))
+    else:
+        story.append(Paragraph(
+            f"<b>🚨 {len(nf)} resultado(s) en la Fiscalía General de la Nación:</b>",
+            ParagraphStyle("alertaf", fontSize=8.5, fontName="Helvetica-Bold",
+                           textColor=ROJO, spaceAfter=3)
+        ))
+        for n in nf:
+            story.append(Paragraph(
+                f"• <b>{n.get('titulo','')}</b> | {n.get('fecha','—')}",
+                ParagraphStyle("nif", fontSize=7.5, fontName="Helvetica",
+                               textColor=GRIS_TEXTO, spaceAfter=2, leftIndent=10)
+            ))
+            if n.get("desc"):
+                story.append(Paragraph(
+                    f"  {n['desc']}...",
+                    ParagraphStyle("desc", fontSize=7, fontName="Helvetica",
+                                   textColor=colors.HexColor("#6B7280"),
+                                   spaceAfter=3, leftIndent=20)
+                ))
+
+    story.append(Spacer(1, 6))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PDF INDIVIDUAL
 # ═══════════════════════════════════════════════════════════════════════════════
 def generar_pdf_individual(tipo_id, nro_id, nombre, df_resultado,
-                           usuario="sistema", folio=None):
+                           usuario="sistema", folio=None,
+                           noticias_google=None, noticias_fiscalia=None,
+                           watermark=False):
     """
     Genera el PDF de certificación individual.
+    noticias_google: lista de dicts con keys titulo, fuente, fecha, riesgo
+    noticias_fiscalia: lista de dicts con keys titulo, fuente, fecha, desc
+    watermark: si True imprime sello DEMO diagonal en cada página.
     Retorna bytes del PDF.
     """
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=letter,
-        topMargin=66, bottomMargin=52,
+        topMargin=86, bottomMargin=52,
         leftMargin=48, rightMargin=48,
-        title="Certificado de Consulta — SERVIALAFT SAS",
+        title="Certificado de Consulta — CruzaListas · SERVIALAFT SAS",
         author="SERVIALAFT SAS",
     )
 
     S = get_styles()
-    folio = folio or f"SA-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    folio = folio or f"CL-{datetime.now().strftime('%Y%m%d%H%M%S')}"
     tiene = df_resultado is not None and not df_resultado.empty
     nivel_principal = df_resultado["nivel"].iloc[0] if tiene else None
+    tiene_noticias  = bool(noticias_google) or bool(noticias_fiscalia)
+    adversas_count  = len([n for n in (noticias_google or []) if n.get("riesgo")]) + \
+                      len(noticias_fiscalia or [])
 
     story = []
+    sec = 1  # contador de secciones
 
     # ── Folio ──────────────────────────────────────────────────────────────
     story.append(Paragraph(f"Folio: <b>{folio}</b>", S["folio"]))
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 14))
 
     # ── Título ─────────────────────────────────────────────────────────────
     story.append(Paragraph("CERTIFICADO DE CONSULTA DE LISTAS VINCULANTES", S["titulo"]))
-    story.append(Paragraph("Consulta individual · OFAC SDN · ONU · PEPs Colombia", S["subtitulo"]))
+    story.append(Paragraph(
+        "CruzaListas · OFAC SDN · Terroristas EE.UU. · ONU · Sanciones UE · PEPs Colombia · Noticias Adversas",
+        S["subtitulo"]))
     story.append(HRFlowable(width="100%", thickness=1.5, color=AZUL_OSCURO, spaceAfter=10))
 
-    # ── Datos del consultado ───────────────────────────────────────────────
-    story.append(Paragraph("1. DATOS DEL SUJETO CONSULTADO", S["seccion"]))
-    story.append(tabla_consultado(tipo_id, nro_id, nombre, usuario, "OFAC / ONU / PEPs"))
+    # ── 1. Datos del consultado ────────────────────────────────────────────
+    story.append(Paragraph(f"{sec}. DATOS DEL SUJETO CONSULTADO", S["seccion"])); sec += 1
+    story.append(tabla_consultado(tipo_id, nro_id, nombre, usuario, "BÚSQUEDA UNIFICADA"))
     story.append(Spacer(1, 12))
 
-    # ── Resultado ──────────────────────────────────────────────────────────
-    story.append(Paragraph("2. RESULTADO DE LA CONSULTA", S["seccion"]))
+    # ── 2. Resultado general ───────────────────────────────────────────────
+    story.append(Paragraph(f"{sec}. RESULTADO DE LA CONSULTA", S["seccion"])); sec += 1
     story.append(caja_resultado(tiene, nivel_principal))
+    if tiene_noticias and adversas_count > 0:
+        story.append(Spacer(1, 6))
+        t_not = Table([[Paragraph(
+            f"<b>⚠  NOTICIAS ADVERSAS: {adversas_count} resultado(s) — Ver sección de noticias</b>",
+            ParagraphStyle("na", fontSize=9, fontName="Helvetica-Bold",
+                           textColor=AMARILLO, alignment=TA_CENTER))]],
+            colWidths=[516])
+        t_not.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, -1), AMARILLO_BG),
+            ("BOX",           (0, 0), (-1, -1), 1, colors.HexColor("#FCD34D")),
+            ("TOPPADDING",    (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ]))
+        story.append(t_not)
     story.append(Spacer(1, 10))
 
-    # ── Detalle de coincidencias ───────────────────────────────────────────
+    # ── 3. Listas consultadas ──────────────────────────────────────────────
+    story.append(Paragraph(f"{sec}. LISTAS Y FUENTES CONSULTADAS", S["seccion"])); sec += 1
+    story.append(tabla_listas_consultadas())
+    story.append(Spacer(1, 10))
+
+    # ── 4. Detalle de coincidencias (condicional) ──────────────────────────
     if tiene:
-        story.append(Paragraph("3. DETALLE DE COINCIDENCIAS ENCONTRADAS", S["seccion"]))
+        story.append(Paragraph(f"{sec}. DETALLE DE COINCIDENCIAS EN LISTAS", S["seccion"])); sec += 1
         story.append(tabla_coincidencias(df_resultado))
         story.append(Spacer(1, 10))
 
-    # ── Texto de certificación ─────────────────────────────────────────────
-    num = "4." if tiene else "3."
-    story.append(Paragraph(f"{num} CERTIFICACIÓN Y ALCANCE", S["seccion"]))
+    # ── 5. Noticias adversas (condicional) ────────────────────────────────
+    if tiene_noticias:
+        seccion_noticias_pdf(story, S, nombre, noticias_google, noticias_fiscalia, str(sec))
+        sec += 1
+
+    # ── 6. Certificación ───────────────────────────────────────────────────
+    story.append(Paragraph(f"{sec}. CERTIFICACIÓN Y ALCANCE", S["seccion"]))
     story.append(HRFlowable(width="100%", thickness=0.5, color=GRIS_BORDE, spaceAfter=6))
-    cert_texto = CERT_CON if tiene else CERT_SIN
-    story.append(Paragraph(cert_texto, S["certif"]))
-    story.append(Spacer(1, 14))
+    story.append(Paragraph(CERT_CON if tiene else CERT_SIN, S["certif"]))
 
-    # ── Firma ──────────────────────────────────────────────────────────────
-    firma_data = [
-        [
-            Paragraph("<b>____________________________</b><br/>Firma Usuario Consultor<br/>"
-                      f"<font size=8>{usuario.upper()}</font>", S["normal"]),
-            Paragraph("<b>____________________________</b><br/>Oficial de Cumplimiento<br/>"
-                      "<font size=8>SERVIALAFT SAS</font>", S["normal"]),
-        ]
-    ]
-    firma_t = Table(firma_data, colWidths=[258, 258])
-    firma_t.setStyle(TableStyle([
-        ("ALIGN",   (0, 0), (-1, -1), "CENTER"),
-        ("VALIGN",  (0, 0), (-1, -1), "BOTTOM"),
-        ("TOPPADDING",    (0, 0), (-1, -1), 20),
-    ]))
-    story.append(KeepTogether([
-        HRFlowable(width="100%", thickness=0.5, color=GRIS_BORDE, spaceAfter=4),
-        Paragraph("Firmas y validación", S["pie"]),
-        Spacer(1, 6),
-        firma_t,
-    ]))
-
-    doc.build(story, onFirstPage=header_footer, onLaterPages=header_footer)
+    _hf = make_header_footer(watermark)
+    doc.build(story, onFirstPage=_hf, onLaterPages=_hf)
     return buf.getvalue()
 
 
@@ -372,14 +546,15 @@ def generar_pdf_individual(tipo_id, nro_id, nombre, df_resultado,
 # PDF MANUAL (Policía / Procuraduría)
 # ═══════════════════════════════════════════════════════════════════════════════
 def generar_pdf_manual(tipo_id, nro_id, nombre, modulo, resultado,
-                       observacion="", usuario="sistema", folio=None):
+                       observacion="", usuario="sistema", folio=None,
+                       watermark=False):
     """
-    PDF para consultas manuales (Policía / Procuraduría).
+    PDF para consultas manuales (Policía / Procuraduría / Otras Fuentes).
     """
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=letter,
-        topMargin=66, bottomMargin=52,
+        topMargin=86, bottomMargin=52,
         leftMargin=48, rightMargin=48,
         title=f"Certificado {modulo} — SERVIALAFT SAS",
     )
@@ -409,20 +584,19 @@ def generar_pdf_manual(tipo_id, nro_id, nombre, modulo, resultado,
         story.append(Paragraph(observacion, S["certif"]))
         story.append(Spacer(1, 8))
 
-    num = "4." if observacion else "3."
-    story.append(Paragraph(f"{num} CERTIFICACIÓN Y ALCANCE", S["seccion"]))
+    sec_cert = 4 if observacion else 3
+    story.append(Paragraph(f"{sec_cert}. CERTIFICACIÓN Y ALCANCE", S["seccion"]))
     story.append(HRFlowable(width="100%", thickness=0.5, color=GRIS_BORDE, spaceAfter=6))
 
     url_map = {
-        "POLICÍA": "https://antecedentes.policia.gov.co:7005/WebJudicial/",
+        "POLICÍA":      "https://antecedentes.policia.gov.co:7005/WebJudicial/",
         "PROCURADURÍA": "https://www.procuraduria.gov.co/Pages/Consulta-de-Antecedentes.aspx",
     }
     url = url_map.get(modulo.upper(), "portal oficial")
     cert = (
         f"SERVIALAFT SAS certifica que, en la fecha indicada, el usuario consultor "
-        f"realizó la verificación de antecedentes del sujeto identificado en este documento "
-        f"a través del portal oficial: <i>{url}</i>. El resultado registrado de dicha "
-        f"consulta manual es: <b>{resultado}</b>. "
+        f"realizó la verificación del sujeto identificado en este documento "
+        f"a través de: <i>{url}</i>. El resultado registrado es: <b>{resultado}</b>. "
         + ("Este resultado indica que el sujeto no presenta registros en la fuente consultada "
            "al momento de la verificación." if es_negativo else
            "Se recomienda escalar al Oficial de Cumplimiento y documentar el hallazgo en el "
@@ -430,42 +604,24 @@ def generar_pdf_manual(tipo_id, nro_id, nombre, modulo, resultado,
            "establecido en el Manual SARLAFT de la entidad.")
     )
     story.append(Paragraph(cert, S["certif"]))
-    story.append(Spacer(1, 14))
 
-    firma_data = [[
-        Paragraph("<b>____________________________</b><br/>Firma Usuario Consultor<br/>"
-                  f"<font size=8>{usuario.upper()}</font>", S["normal"]),
-        Paragraph("<b>____________________________</b><br/>Oficial de Cumplimiento<br/>"
-                  "<font size=8>SERVIALAFT SAS</font>", S["normal"]),
-    ]]
-    firma_t = Table(firma_data, colWidths=[258, 258])
-    firma_t.setStyle(TableStyle([
-        ("ALIGN",  (0, 0), (-1, -1), "CENTER"),
-        ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
-        ("TOPPADDING", (0, 0), (-1, -1), 20),
-    ]))
-    story.append(KeepTogether([
-        HRFlowable(width="100%", thickness=0.5, color=GRIS_BORDE, spaceAfter=4),
-        Paragraph("Firmas y validación", S["pie"]),
-        Spacer(1, 6),
-        firma_t,
-    ]))
-
-    doc.build(story, onFirstPage=header_footer, onLaterPages=header_footer)
+    _hf = make_header_footer(watermark)
+    doc.build(story, onFirstPage=_hf, onLaterPages=_hf)
     return buf.getvalue()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PDF MASIVO (resumen ejecutivo)
 # ═══════════════════════════════════════════════════════════════════════════════
-def generar_pdf_masivo(df_resultados, umbral, usuario="sistema", folio=None):
+def generar_pdf_masivo(df_resultados, umbral, usuario="sistema", folio=None,
+                       watermark=False):
     """
     Resumen ejecutivo para carga masiva.
     """
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=letter,
-        topMargin=66, bottomMargin=52,
+        topMargin=86, bottomMargin=52,
         leftMargin=48, rightMargin=48,
         title="Reporte Masivo — SERVIALAFT SAS",
     )
@@ -588,25 +744,7 @@ def generar_pdf_masivo(df_resultados, umbral, usuario="sistema", folio=None):
         f"Este reporte es válido únicamente para la fecha y hora de expedición."
     )
     story.append(Paragraph(cert_mas, S["certif"]))
-    story.append(Spacer(1, 14))
 
-    firma_data = [[
-        Paragraph("<b>____________________________</b><br/>Firma Usuario Consultor<br/>"
-                  f"<font size=8>{usuario.upper()}</font>", S["normal"]),
-        Paragraph("<b>____________________________</b><br/>Oficial de Cumplimiento<br/>"
-                  "<font size=8>SERVIALAFT SAS</font>", S["normal"]),
-    ]]
-    firma_t = Table(firma_data, colWidths=[258, 258])
-    firma_t.setStyle(TableStyle([
-        ("ALIGN",  (0, 0), (-1, -1), "CENTER"),
-        ("TOPPADDING", (0, 0), (-1, -1), 20),
-    ]))
-    story.append(KeepTogether([
-        HRFlowable(width="100%", thickness=0.5, color=GRIS_BORDE, spaceAfter=4),
-        Paragraph("Firmas y validación", S["pie"]),
-        Spacer(1, 6),
-        firma_t,
-    ]))
-
-    doc.build(story, onFirstPage=header_footer, onLaterPages=header_footer)
+    _hf = make_header_footer(watermark)
+    doc.build(story, onFirstPage=_hf, onLaterPages=_hf)
     return buf.getvalue()
