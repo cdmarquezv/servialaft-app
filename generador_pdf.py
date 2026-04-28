@@ -353,24 +353,26 @@ def seccion_noticias_pdf(story, S, nombre, noticias_google, noticias_fiscalia, n
 
     # Parámetros de búsqueda
     terminos = "lavado · narcotrafico · corrupcion · fraude · capturado · investigado · condenado · sancionado · terrorismo · imputado · extorsion · peculado"
+    _nth = ParagraphStyle("nth", fontSize=7.5, fontName="Helvetica-Bold", textColor=BLANCO,    leading=10)
+    _ntc = ParagraphStyle("ntc", fontSize=7.5, fontName="Helvetica",      textColor=GRIS_TEXTO, leading=10)
     params_data = [
-        ["PARÁMETRO",          "VALOR"],
-        ["Nombre buscado",      nombre.upper()],
-        ["Método de búsqueda", 'Nombre completo entre comillas — coincidencia exacta de frase'],
-        ["Términos de riesgo",  terminos],
-        ["Fuentes consultadas", "Google News RSS · Fiscalía General (RSS WordPress)"],
-        ["Cobertura temporal",  "Últimas noticias indexadas"],
+        [Paragraph("PARÁMETRO", _nth),          Paragraph("VALOR", _nth)],
+        [Paragraph("Nombre buscado", _ntc),      Paragraph(nombre.upper(), _ntc)],
+        [Paragraph("Método de búsqueda", _ntc),  Paragraph("Nombre completo entre comillas — coincidencia exacta de frase", _ntc)],
+        [Paragraph("Términos de riesgo", _ntc),  Paragraph(terminos, _ntc)],
+        [Paragraph("Fuentes consultadas", _ntc), Paragraph("Google News RSS · Fiscalía General (RSS WordPress)", _ntc)],
+        [Paragraph("Cobertura temporal", _ntc),  Paragraph("Últimas noticias indexadas", _ntc)],
     ]
     pt = Table(params_data, colWidths=[160, 356])
     pt.setStyle(TableStyle([
         ("BACKGROUND",    (0, 0), (-1, 0),  AZUL_MED),
-        ("TEXTCOLOR",     (0, 0), (-1, 0),  BLANCO),
-        ("FONTNAME",      (0, 0), (-1, 0),  "Helvetica-Bold"),
         ("FONTSIZE",      (0, 0), (-1, -1), 7.5),
         ("GRID",          (0, 0), (-1, -1), 0.4, GRIS_BORDE),
         ("TOPPADDING",    (0, 0), (-1, -1), 4),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ("LEFTPADDING",   (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 6),
+        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
         ("ROWBACKGROUND", (0, 1), (-1, -1), [GRIS_SUAVE, BLANCO]),
     ]))
     story.append(pt)
