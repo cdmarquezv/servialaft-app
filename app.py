@@ -743,7 +743,7 @@ def mod_stats():
     st.markdown("## 📊 Estadísticas de uso")
     todos_logs = LOGS_DEMO + st.session_state.logs
     df_logs = pd.DataFrame(todos_logs)
-    df_logs["fecha_hora"] = pd.to_datetime(df_logs["fecha_hora"])
+    df_logs["fecha_hora"] = pd.to_datetime(df_logs["fecha_hora"], format="mixed", dayfirst=False)
 
     mes_actual = date.today().replace(day=1)
     df_mes = df_logs[df_logs["fecha_hora"].dt.date >= mes_actual]
