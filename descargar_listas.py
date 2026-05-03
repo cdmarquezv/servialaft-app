@@ -22,13 +22,13 @@ print("=" * 65)
 registros_totales = []
 por_lista = {}
 
-def agregar(nombre, tipo, lista, programas, docs=None, aka=None, uid=""):
+def agregar(nombre, tipo, lista, programas, docs=None, aka=None, uid="", detalle=""):
     if not str(nombre).strip(): return
     registros_totales.append({
         "uid": uid, "nombre": str(nombre).upper().strip(),
         "tipo": tipo, "programas": programas,
         "documentos": docs or [], "aka": list(set(aka or [])),
-        "lista": lista,
+        "lista": lista, "detalle": detalle,
     })
     por_lista[lista] = por_lista.get(lista, 0) + 1
 
@@ -230,9 +230,9 @@ if not ue_ok:
 # ─────────────────────────────────────────────────────────────────────────────
 # 5. PEPs COLOMBIA — datos.gov.co (Función Pública) con fallback a peps.xlsx
 # ─────────────────────────────────────────────────────────────────────────────
-print("\n[5/5] PEPs Colombia — datos.gov.co (Función Pública)...")
+print("\n[5/6] PEPs Colombia — datos.gov.co (Función Pública)...")
 _PEPS_API = "https://www.datos.gov.co/resource/3qxn-uc22.json"
-_PEPS_LIMIT = 50000  # Socrata permite hasta 50 000 filas por petición
+_PEPS_LIMIT = 50000
 peps_cargados = False
 
 try:
@@ -246,15 +246,15 @@ try:
     rows_peps = resp_peps.json()
     cp = 0
     for row in rows_peps:
-        n_p  = str(row.get("nombre_pep", "") or "").strip()
-        id_p = str(row.get("numero_documento", "") or "").strip().replace("-", "").replace(" ", "")
+        n_p     = str(row.get("nombre_pep", "") or "").strip()
+        id_p    = str(row.get("numero_documento", "") or "").strip().replace("-", "").replace(" ", "")
         cargo   = str(row.get("denominacion_cargo", "") or "").strip()
         entidad = str(row.get("nombre_entidad", "") or "").strip()
-        detalle = f"{cargo} — {entidad}" if cargo and entidad else (cargo or entidad)
+        det_p   = f"{cargo} — {entidad}" if cargo and entidad else (cargo or entidad or "PEP Colombia")
         if n_p:
             agregar(n_p, "PEP", "PEPs Colombia", [cargo or "PEP"],
                     [{"tipo": "CC", "numero": id_p}] if id_p else [],
-                    uid=f"PEP-SIGEP-{id_p or cp}")
+                    uid=f"PEP-SIGEP-{id_p or cp}", detalle=det_p)
             cp += 1
     print(f"      ✔ {cp:,} PEPs desde datos.gov.co (Función Pública)")
     peps_cargados = True
@@ -272,19 +272,170 @@ if not peps_cargados:
             cp = 0
             for row in ws.iter_rows(min_row=2, values_only=True):
                 rd = dict(zip(headers, row))
-                n_p   = str(rd.get("nombre","") or "").strip()
-                id_p  = str(rd.get("nro_id","") or rd.get("identificacion","") or "").strip()
-                ti_p  = str(rd.get("tipo_id","") or "CC").upper().strip()
+                n_p     = str(rd.get("nombre","") or "").strip()
+                id_p    = str(rd.get("nro_id","") or rd.get("identificacion","") or "").strip()
+                ti_p    = str(rd.get("tipo_id","") or "CC").upper().strip()
                 cargo_p = str(rd.get("cargo","") or "").strip()
                 if n_p:
                     agregar(n_p, "PEP", "PEPs Colombia", [cargo_p or "PEP"],
-                            [{"tipo": ti_p, "numero": id_p}] if id_p else [])
+                            [{"tipo": ti_p, "numero": id_p}] if id_p else [],
+                            detalle=cargo_p or "PEP Colombia")
                     cp += 1
             print(f"      ✔ {cp:,} PEPs desde peps.xlsx (fallback)")
         except Exception as e:
             print(f"      ✘ peps.xlsx: {e}")
     else:
         print("      ℹ  Sin fuente de PEPs disponible — se usarán las entradas prioritarias")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5b. FAMILIARES DE PEPs — Declaraciones PEP (archivo manual de Función Pública)
+#
+# Estructura del Excel de Función Pública (columnas truncadas en pantalla):
+#   FECHA_PU | TIPO_DOC | NUMERO_ | PRIMER_N | SEGUNDO_ | PRIMER_A | SEGUNDO_
+#   ENTIDAD_ | CARGO_DI | DECLARAN | FECHA_VI | ES_TRABA | FECHA_DE | PAIS_DESE
+#   DEPTO_DE | MUNIC_D  | TIENE_CO
+#   CONYUGE(tipo_doc) | CONYUGE(numero) | CONYUGE(primer_n) | CONYUGE(segundo_n)
+#   CONYUGE(primer_a) | CONYUGE(segundo_a)
+#   PARIENTE(s)...
+# ─────────────────────────────────────────────────────────────────────────────
+print("\n[5b] Familiares de PEPs — Declaraciones Función Pública (archivo manual)...")
+_FAM_FILES = ["peps_declaraciones.xlsx", "peps_familiares.xlsx",
+              "declaraciones_pep.xlsx", "peps_declaraciones.xls"]
+
+def _v(row, idx):
+    """Valor limpio de una celda por índice."""
+    if idx < 0 or idx >= len(row): return ""
+    return str(row[idx] or "").strip()
+
+def _nombre(*partes):
+    return " ".join(p for p in partes if p and p.upper() not in ("", "NONE", "NAN")).upper().strip()
+
+peps_fam_cargados = False
+for fname in _FAM_FILES:
+    if not os.path.exists(fname):
+        continue
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(fname, read_only=True, data_only=True)
+        ws = wb.active
+        raw_headers = [str(c or "").strip() for c in next(ws.values)]
+        norm_h = [h.lower().replace(" ","_") for h in raw_headers]
+        print(f"      Archivo : {fname}  ({len(raw_headers)} columnas)")
+        print(f"      Headers : {raw_headers}")
+
+        # ── Índices PEP declarante (por prefijo) ──────────────────────────────
+        def _find(prefix, start=0):
+            for i, h in enumerate(norm_h):
+                if i >= start and h.startswith(prefix.lower()):
+                    return i
+            return -1
+
+        i_tdoc  = _find("tipo_doc")
+        i_num   = _find("numero_")
+        i_pn    = _find("primer_n")
+        i_sn    = _find("segundo_n") if _find("segundo_n") > 0 else _find("segundo_", i_pn + 1)
+        i_pa    = _find("primer_a")
+        i_sa    = _find("segundo_a") if _find("segundo_a") > 0 else _find("segundo_", i_pa + 1)
+        i_ent   = _find("entidad_")
+        i_cargo = _find("cargo_")
+
+        # ── Índices cónyuge: las 6 columnas consecutivas que empiezan con CONYUGE ─
+        con_cols = [i for i, h in enumerate(norm_h) if h.startswith("conyuge")]
+
+        # ── Índices pariente: columnas que empiezan con PARIENTE ──────────────
+        par_cols = [i for i, h in enumerate(norm_h) if h.startswith("pariente")]
+
+        print(f"      PEP     : tdoc={i_tdoc} num={i_num} "
+              f"pn={i_pn} sn={i_sn} pa={i_pa} sa={i_sa} ent={i_ent} cargo={i_cargo}")
+        print(f"      Cónyuge : {len(con_cols)} cols → {[norm_h[i] for i in con_cols]}")
+        print(f"      Pariente: {len(par_cols)} cols → {[norm_h[i] for i in par_cols]}")
+
+        cf = [0]
+        cp_fam = 0
+        seen_peps = set()
+
+        def _familiar(row, cols, tipo_relacion, nom_pep, cargo_pep, ent_pep):
+            """Extrae y registra un familiar dado sus índices de columna. Retorna True si agregó."""
+            if len(cols) < 2: return False
+            t_doc = num = n1 = n2 = a1 = a2 = ""
+            if len(cols) >= 6:
+                t_doc = _v(row, cols[0]) or "CC"
+                num   = _v(row, cols[1]).replace("-","").replace(" ","")
+                n1, n2, a1, a2 = (_v(row, cols[2]), _v(row, cols[3]),
+                                   _v(row, cols[4]), _v(row, cols[5]))
+            else:
+                t_doc = _v(row, cols[0]) or "CC"
+                num   = _v(row, cols[1]).replace("-","").replace(" ","")
+                partes = [_v(row, c) for c in cols[2:]]
+                n1 = partes[0] if len(partes) > 0 else ""
+                n2 = partes[1] if len(partes) > 1 else ""
+                a1 = partes[2] if len(partes) > 2 else ""
+                a2 = partes[3] if len(partes) > 3 else ""
+            nom_fam = _nombre(n1, n2, a1, a2)
+            if not nom_fam or nom_fam in ("NONE",""):
+                return False
+            det = f"Familiar de PEP: {nom_pep} · Relación: {tipo_relacion}"
+            if cargo_pep: det += f" · Cargo PEP: {cargo_pep}"
+            if ent_pep:   det += f" · Entidad: {ent_pep}"
+            agregar(nom_fam, "PEP Familiar", "PEPs Colombia",
+                    [tipo_relacion],
+                    [{"tipo": t_doc, "numero": num}] if num else [],
+                    uid=f"PEP-FAM-{num or cf[0]}", detalle=det)
+            return True
+
+        for row in ws.values:
+            row = list(row)
+            if all(v is None or str(v).strip() == "" for v in row):
+                continue
+
+            # ── PEP declarante ────────────────────────────────────────────────
+            tdoc_pep  = _v(row, i_tdoc) or "CC"
+            num_pep   = _v(row, i_num).replace("-","").replace(" ","")
+            nom_pep   = _nombre(_v(row, i_pn), _v(row, i_sn), _v(row, i_pa), _v(row, i_sa))
+            cargo_pep = _v(row, i_cargo)
+            ent_pep   = _v(row, i_ent)
+            det_pep   = cargo_pep or "PEP Colombia"
+            if ent_pep: det_pep += f" — {ent_pep}"
+
+            if nom_pep and num_pep not in seen_peps:
+                seen_peps.add(num_pep)
+                agregar(nom_pep, "PEP", "PEPs Colombia",
+                        [cargo_pep or "PEP"],
+                        [{"tipo": tdoc_pep, "numero": num_pep}] if num_pep else [],
+                        uid=f"PEP-DECL-{num_pep or cp_fam}", detalle=det_pep)
+                cp_fam += 1
+
+            # ── Cónyuge ───────────────────────────────────────────────────────
+            if _familiar(row, con_cols, "CÓNYUGE/COMPAÑERO PERMANENTE",
+                         nom_pep, cargo_pep, ent_pep):
+                cf[0] += 1
+
+            # ── Otros parientes ───────────────────────────────────────────────
+            if par_cols:
+                rel_val = _v(row, par_cols[0]).upper()
+                if rel_val and any(k in rel_val for k in ("HIJO","HIJA","PADRE","MADRE",
+                                                           "HERMANO","HERMANA","PARIENTE")):
+                    if _familiar(row, par_cols[1:], rel_val, nom_pep, cargo_pep, ent_pep):
+                        cf[0] += 1
+                else:
+                    if _familiar(row, par_cols, "PARIENTE", nom_pep, cargo_pep, ent_pep):
+                        cf[0] += 1
+
+        print(f"      ✔ {cp_fam:,} PEPs declarantes | {cf[0]:,} familiares cargados desde {fname}")
+        peps_fam_cargados = True
+        break
+    except Exception as e:
+        import traceback
+        print(f"      ✘ Error leyendo {fname}: {e}")
+        traceback.print_exc()
+
+if not peps_fam_cargados:
+    print("      ℹ  Archivo de declaraciones PEP no encontrado.")
+    print("         Para incluir familiares de PEPs:")
+    print("         1. Ve a: https://www1.funcionpublica.gov.co/fdci/consultaCiudadana/consultaPEP")
+    print("         2. Haz clic en 'Descargue Declaraciones PEP'")
+    print("         3. Guarda el archivo como 'peps_declaraciones.xlsx' en esta carpeta")
+    print("         4. Vuelve a ejecutar: python descargar_listas.py")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 6. ENTRADAS PRIORITARIAS — Colombianos conocidos en listas

@@ -20,40 +20,79 @@ try:
 except ImportError:
     PDF_DISPONIBLE = False
 
+from database import (
+    init_db, verificar_usuario,
+    listar_empresas, crear_empresa, toggle_empresa,
+    listar_usuarios, crear_usuario, toggle_usuario, reset_password,
+    registrar_consulta, listar_consultas,
+)
+init_db()
+
 st.set_page_config(page_title="SERVIALAFT SAS", page_icon="🛡️",
                    layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
-[data-testid="stSidebar"] { background:#0f1b2d; }
-[data-testid="stSidebar"] * { color:#e2e8f0 !important; }
+@import url('https://fonts.googleapis.com/css2?family=Domine:wght@400;700&display=swap');
+
+/* ── Sidebar ─────────────────────────────────────────────────── */
+[data-testid="stSidebar"] { background:#0F3D3A; }
+[data-testid="stSidebar"] * { color:#e2eeec !important; }
 [data-testid="stSidebar"] .stRadio > label { display:none; }
 [data-testid="stSidebar"] .stRadio label {
     display:flex !important; align-items:center; padding:10px 14px;
     border-radius:8px; margin:2px 0; cursor:pointer; font-size:15px; }
-[data-testid="stSidebar"] .stRadio label:hover { background:rgba(255,255,255,0.1); }
+[data-testid="stSidebar"] .stRadio label:hover { background:rgba(65,189,178,0.18); }
+[data-testid="stSidebar"] .stRadio label:has(input:checked) {
+    background:rgba(65,189,178,0.28) !important;
+    border-left:3px solid #41BDB2; }
+
+/* ── Botones primarios ───────────────────────────────────────── */
+.stButton > button[kind="primary"],
+button[data-testid="baseButton-primary"] {
+    background:#009881 !important;
+    border:none !important;
+    color:#fff !important;
+    border-radius:8px !important; }
+.stButton > button[kind="primary"]:hover,
+button[data-testid="baseButton-primary"]:hover {
+    background:#0F3D3A !important; }
+
+/* ── Login ───────────────────────────────────────────────────── */
 .login-wrap { max-width:420px; margin:60px auto 0; padding:40px 36px 32px;
-    background:#fff; border-radius:16px; box-shadow:0 4px 32px rgba(0,0,0,0.10); }
-.login-title { font-size:26px; font-weight:700; color:#0f1b2d; text-align:center; margin-bottom:4px; }
-.login-sub   { font-size:13px; color:#6c757d; text-align:center; margin-bottom:24px; }
+    background:#fff; border-radius:16px; box-shadow:0 4px 32px rgba(15,61,58,0.12); }
+.login-title { font-size:26px; font-weight:700; font-family:'Domine',serif;
+    color:#0F3D3A; text-align:center; margin-bottom:4px; }
+.login-sub   { font-size:13px; color:#51535B; text-align:center; margin-bottom:24px; }
+
+/* ── Tarjetas de fuentes externas ────────────────────────────── */
 .ext-link { display:block; padding:12px 16px; border-radius:10px;
-    border:1px solid #e2e8f0; background:#f8faff;
+    border:1px solid #b2d8d5; background:#f0faf9;
     text-decoration:none !important; margin-bottom:8px; transition:box-shadow .2s; }
-.ext-link:hover { box-shadow:0 4px 12px rgba(15,27,45,0.10); }
-.ext-title { font-size:14px; font-weight:700; color:#0f1b2d; }
-.ext-url   { font-size:11px; color:#2563eb; margin-top:3px; font-family:monospace; }
-.metric-box { background:#f8faff; border:1px solid #e2e8f0;
+.ext-link:hover { box-shadow:0 4px 12px rgba(15,61,58,0.12); }
+.ext-title { font-size:14px; font-weight:700; color:#0F3D3A; }
+.ext-url   { font-size:11px; color:#009881; margin-top:3px; font-family:monospace; }
+
+/* ── Métricas ────────────────────────────────────────────────── */
+.metric-box { background:#f0faf9; border:1px solid #b2d8d5;
     border-radius:12px; padding:20px 16px; text-align:center; }
-.metric-num   { font-size:38px; font-weight:800; color:#0f1b2d; line-height:1; }
-.metric-label { font-size:13px; color:#6c757d; margin-top:6px; }
+.metric-num   { font-size:38px; font-weight:800; font-family:'Domine',serif;
+    color:#0F3D3A; line-height:1; }
+.metric-label { font-size:13px; color:#51535B; margin-top:6px; }
+
+/* ── Headings principales ────────────────────────────────────── */
+h1, h2, h3, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
+    font-family:'Domine',serif !important; color:#0F3D3A !important; }
+
+/* ── Footer ──────────────────────────────────────────────────── */
 .footer-brand {
     position:fixed; bottom:0; left:0; right:0;
-    background:#0f1b2d; color:#94a3b8;
+    background:#0F3D3A; color:#a8ccc9;
     text-align:center; padding:8px 16px;
     font-size:12px; z-index:999;
-    border-top:1px solid rgba(255,255,255,0.08);
+    border-top:2px solid #41BDB2;
 }
-.footer-brand a { color:#60a5fa; text-decoration:none; }
+.footer-brand a { color:#41BDB2; text-decoration:none; }
 .footer-brand a:hover { text-decoration:underline; }
 footer { visibility:hidden; } #MainMenu { visibility:hidden; }
 </style>
@@ -72,25 +111,13 @@ st.markdown("""
 for k, v in {
     "logged_in": False,
     "user": None,
-    "menu": "UNIFICADA",
-    "logs": [],
+    "user_info": {},
+    "menu": "📊 Estadísticas de uso",
     "ultima_consulta": {"tipo_id": "CC", "nro_id": "", "nombre": ""},
     "login_intentos": 0,
     "login_bloqueado_hasta": None,
 }.items():
     if k not in st.session_state: st.session_state[k] = v
-
-def _cargar_usuarios():
-    if _os.path.exists("usuarios.json"):
-        with open("usuarios.json", "r", encoding="utf-8") as _f:
-            return _json.load(_f)
-    return {
-        "admin":     {"password": "admin123",    "rol": "Administrador", "nombre": "Admin Principal"},
-        "analista1": {"password": "sarlaft2024", "rol": "Analista",      "nombre": "Laura Gomez"},
-        "consultor": {"password": "consulta01",  "rol": "Consultor",     "nombre": "Andres Martinez"},
-    }
-
-USUARIOS = _cargar_usuarios()
 
 def cargar_listas():
     if _os.path.exists("listas_vinculantes.json"):
@@ -100,13 +127,14 @@ def cargar_listas():
         for r in data.get("registros",[]):
             nom=r.get("nombre",""); lst=r.get("lista","OFAC SDN")
             prog=", ".join(r.get("programas",[])) or lst
-            rows.append({"tipo_id":"N/A","nro_id":"N/A","nombre":nom,"origen":lst,"detalle":prog})
+            det=r.get("detalle") or prog
+            rows.append({"tipo_id":"N/A","nro_id":"N/A","nombre":nom,"origen":lst,"detalle":det})
             for doc in r.get("documentos",[]):
                 num=doc.get("numero","").strip()
                 if num and num!="N/A":
-                    rows.append({"tipo_id":doc.get("tipo","DOC"),"nro_id":num,"nombre":nom,"origen":lst,"detalle":prog})
+                    rows.append({"tipo_id":doc.get("tipo","DOC"),"nro_id":num,"nombre":nom,"origen":lst,"detalle":det})
             for aka in r.get("aka",[]):
-                if aka: rows.append({"tipo_id":"N/A","nro_id":"N/A","nombre":aka,"origen":lst,"detalle":f"{prog} (AKA)"})
+                if aka: rows.append({"tipo_id":"N/A","nro_id":"N/A","nombre":aka,"origen":lst,"detalle":f"{det} (AKA)"})
         return pd.DataFrame(rows), True, data.get("meta",{})
     # ── DATOS DEMO — Colombianos reales en listas vinculantes ────────────────
     demo = pd.DataFrame([
@@ -172,10 +200,18 @@ def buscar(tipo_id, nro_id, nombre, umbral):
         if k not in seen: seen.add(k); out.append(r)
     return pd.DataFrame(out) if out else pd.DataFrame()
 
-def log_q(modulo,tipo_id,nro_id,nombre,resultado):
-    st.session_state.logs.append({"fecha_hora":datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "usuario":st.session_state.user,"modulo":modulo,"tipo_id":tipo_id,
-        "nro_id":str(nro_id),"nombre":nombre,"resultado":resultado})
+def log_q(modulo, tipo_id, nro_id, nombre, resultado, empresa_consultada=""):
+    info = st.session_state.get("user_info", {})
+    registrar_consulta(
+        username=st.session_state.user,
+        empresa_id=info.get("empresa_id", 1),
+        modulo=modulo,
+        tipo_id=tipo_id,
+        nro_id=str(nro_id),
+        nombre=nombre,
+        resultado=resultado,
+        empresa_consultada=empresa_consultada,
+    )
 
 def a_excel(df):
     buf=io.BytesIO()
@@ -350,52 +386,69 @@ def pantalla_login():
           </span></div>
         </div>""",unsafe_allow_html=True)
 
-        # Verificar bloqueo por intentos fallidos
         bloqueado_hasta = st.session_state.login_bloqueado_hasta
         if bloqueado_hasta and datetime.now() < bloqueado_hasta:
             segundos = int((bloqueado_hasta - datetime.now()).total_seconds())
-            st.error(f"Demasiados intentos fallidos. Espera {segundos} segundo(s) para volver a intentar.")
+            st.error(f"Demasiados intentos fallidos. Espera {segundos} segundo(s).")
             return
 
-        usuario=st.text_input("Usuario",placeholder="usuario")
-        password=st.text_input("Contraseña",type="password",placeholder="contraseña")
-        st.caption("Demo → **admin** / **admin123**")
-        if st.button("Iniciar sesión →",type="primary",use_container_width=True):
-            if usuario in USUARIOS and USUARIOS[usuario]["password"]==password:
-                st.session_state.logged_in=True
-                st.session_state.user=usuario
-                st.session_state.login_intentos=0
-                st.session_state.login_bloqueado_hasta=None
+        usuario  = st.text_input("Usuario", placeholder="usuario")
+        password = st.text_input("Contraseña", type="password", placeholder="contraseña")
+        if st.button("Iniciar sesión →", type="primary", use_container_width=True):
+            info = verificar_usuario(usuario, password)
+            if info:
+                st.session_state.logged_in  = True
+                st.session_state.user       = usuario
+                st.session_state.user_info  = info
+                st.session_state.login_intentos = 0
+                st.session_state.login_bloqueado_hasta = None
                 st.rerun()
             else:
                 st.session_state.login_intentos += 1
                 intentos = st.session_state.login_intentos
                 if intentos >= 5:
                     st.session_state.login_bloqueado_hasta = datetime.now() + timedelta(minutes=5)
-                    st.error("Demasiados intentos fallidos. Acceso bloqueado por 5 minutos.")
+                    st.error("Demasiados intentos. Bloqueado por 5 minutos.")
                 else:
-                    restantes = 5 - intentos
-                    st.error(f"Usuario o contraseña incorrectos. {restantes} intento(s) restante(s) antes del bloqueo.")
+                    st.error(f"Usuario o contraseña incorrectos. {5-intentos} intento(s) restante(s).")
 
-MENU_ITEMS=["🔍 Búsqueda Unificada","🔗 Otras Fuentes",
-            "📋 Registros consultados","📊 Estadísticas de uso",
-            "🚪 Cerrar sesión"]
+MENU_ANALISTA = ["📊 Estadísticas de uso",
+                 "🔍 Búsqueda Unificada", "🔗 Otras Fuentes",
+                 "📋 Registros consultados",
+                 "🔑 Mi perfil",
+                 "🚪 Cerrar sesión"]
+MENU_SUPER    = ["📊 Estadísticas de uso",
+                 "🔍 Búsqueda Unificada", "🔗 Otras Fuentes",
+                 "📋 Registros consultados",
+                 "🏢 Empresas", "👥 Usuarios",
+                 "🔑 Mi perfil",
+                 "🚪 Cerrar sesión"]
 
 def sidebar():
+    info = st.session_state.get("user_info", {})
+    es_super = info.get("rol") == "superadmin"
+    menu_items = MENU_SUPER if es_super else MENU_ANALISTA
+
     with st.sidebar:
         st.markdown("### 🛡️ CruzaListas")
         st.caption("por SERVIALAFT SAS")
         st.markdown("---")
-        info=USUARIOS[st.session_state.user]
-        st.markdown(f"**{info['nombre']}**"); st.caption(f"Rol: {info['rol']}"); st.markdown("---")
-        idx=0
-        for i,m in enumerate(MENU_ITEMS):
-            if st.session_state.menu in m or m in st.session_state.menu: idx=i; break
-        sel=st.radio("Menú",MENU_ITEMS,index=idx,label_visibility="collapsed")
+        st.markdown(f"**{info.get('nombre', st.session_state.user)}**")
+        st.caption(f"{'Superadministrador' if es_super else 'Analista'} · {info.get('empresa_nombre','')}")
+        st.markdown("---")
+        idx = 0
+        for i, m in enumerate(menu_items):
+            if st.session_state.menu in m or m in st.session_state.menu:
+                idx = i; break
+        sel = st.radio("Menú", menu_items, index=idx, label_visibility="collapsed")
         if "Cerrar" in sel:
-            st.session_state.logged_in=False; st.session_state.user=None
-            st.session_state.menu="UNIFICADA"; st.rerun()
-        else: st.session_state.menu=sel
+            st.session_state.logged_in = False
+            st.session_state.user      = None
+            st.session_state.user_info = {}
+            st.session_state.menu      = "UNIFICADA"
+            st.rerun()
+        else:
+            st.session_state.menu = sel
 
 def mod_unificada():
     st.markdown("## 🔍 Búsqueda Unificada")
@@ -507,6 +560,12 @@ def mod_unificada():
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             archivo=st.file_uploader("Subir .xlsx",type=["xlsx"])
             umbral_m=st.slider("SimiliScore™ masivo (%)",50,100,85)
+            _info_m = st.session_state.get("user_info", {})
+            _es_super_m = _info_m.get("rol") == "superadmin"
+            emp_consultada_m = ""
+            if _es_super_m:
+                emp_consultada_m = st.text_input("Empresa consultada (cliente)",
+                    placeholder="Nombre de la empresa que genera la consulta", key="emp_cons_masivo")
             procesar=st.button("⚙️ Procesar archivo",type="primary",use_container_width=True)
         with c2:
             if procesar and archivo:
@@ -521,11 +580,13 @@ def mod_unificada():
                         if dr.empty:
                             res.append({"tipo_id":row["tipo_id"],"nro_id":row["nro_id"],"nombre":row["nombre"],
                                         "resultado":"SIN COINCIDENCIA","origen":"—","nivel":"—","sim_%":"—"})
-                            log_q("MASIVO",row["tipo_id"],row["nro_id"],row["nombre"],"NO ENCONTRADO")
+                            log_q("MASIVO",row["tipo_id"],row["nro_id"],row["nombre"],"NO ENCONTRADO",
+                                  empresa_consultada=emp_consultada_m)
                         else:
                             for _,r in dr.iterrows():
                                 rd=r.to_dict(); rd["resultado"]="ENCONTRADO EN LISTA"; res.append(rd)
-                            log_q("MASIVO",row["tipo_id"],row["nro_id"],row["nombre"],dr["nivel"].iloc[0])
+                            log_q("MASIVO",row["tipo_id"],row["nro_id"],row["nombre"],dr["nivel"].iloc[0],
+                                  empresa_consultada=emp_consultada_m)
                     prog.empty(); do=pd.DataFrame(res)
                     enc=(do["resultado"]=="ENCONTRADO EN LISTA").sum()
                     co1,co2,co3=st.columns(3)
@@ -710,39 +771,44 @@ def mod_otras_fuentes():
                                    file_name=f"{nombre_arch}_{nid}_{date.today()}.pdf",
                                    mime="application/pdf")
 
-LOGS_DEMO=[
-    {"fecha_hora":"2024-06-10 08:14","usuario":"analista1","modulo":"UNIFICADA","tipo_id":"CC","nro_id":"12345678","nombre":"JUAN CARLOS RODRIGUEZ GOMEZ","resultado":"EXACTA"},
-    {"fecha_hora":"2024-06-10 09:02","usuario":"consultor","modulo":"POLICÍA","tipo_id":"CC","nro_id":"98765432","nombre":"MARIA JOSE ALVAREZ RUIZ","resultado":"SIN ANTECEDENTES"},
-    {"fecha_hora":"2024-06-10 09:48","usuario":"analista1","modulo":"MASIVO","tipo_id":"NIT","nro_id":"900123456","nombre":"INVERSIONES DELTA SAS","resultado":"EXACTA"},
-    {"fecha_hora":"2024-06-10 10:15","usuario":"admin","modulo":"PROCURADURÍA","tipo_id":"CC","nro_id":"55443322","nombre":"LUCIA PATRICIA MORA VARGAS","resultado":"SIN SANCIONES DISCIPLINARIAS"},
-    {"fecha_hora":"2024-06-10 10:58","usuario":"analista1","modulo":"UNIFICADA","tipo_id":"CC","nro_id":"11223344","nombre":"CARLOS ANDRES PEREZ","resultado":"APROXIMADA"},
-    {"fecha_hora":"2024-06-10 11:22","usuario":"consultor","modulo":"NOTICIAS","tipo_id":"CC","nro_id":"87654321","nombre":"ANDRES FELIPE LOPEZ","resultado":"2 NOTICIAS ADVERSAS"},
-]
-
 def mod_logs():
     st.markdown("## 📋 Registros de consultas")
-    todos=LOGS_DEMO+st.session_state.logs; df=pd.DataFrame(todos)
-    if df.empty: st.info("No hay registros aún."); return
-    c1,c2,c3=st.columns(3)
-    fm=c1.selectbox("Módulo",["Todos"]+sorted(df["modulo"].unique().tolist()))
-    fu=c2.selectbox("Usuario",["Todos"]+sorted(df["usuario"].unique().tolist()))
-    ft=c3.text_input("Buscar nombre o número")
-    dff=df.copy()
-    if fm!="Todos": dff=dff[dff["modulo"]==fm]
-    if fu!="Todos": dff=dff[dff["usuario"]==fu]
+    info = st.session_state.get("user_info", {})
+    es_super = info.get("rol") == "superadmin"
+    empresa_id = None if es_super else info.get("empresa_id")
+    rows = listar_consultas(empresa_id=empresa_id)
+    if not rows:
+        st.info("No hay registros aún."); return
+    df = pd.DataFrame(rows)
+    c1, c2, c3 = st.columns(3)
+    fm = c1.selectbox("Módulo",  ["Todos"] + sorted(df["modulo"].dropna().unique().tolist()))
+    fu = c2.selectbox("Usuario", ["Todos"] + sorted(df["username"].dropna().unique().tolist()))
+    ft = c3.text_input("Buscar nombre o número")
+    dff = df.copy()
+    if fm != "Todos": dff = dff[dff["modulo"] == fm]
+    if fu != "Todos": dff = dff[dff["username"] == fu]
     if ft:
-        q=ft.upper()
-        dff=dff[dff["nombre"].str.upper().str.contains(q,na=False)|dff["nro_id"].str.contains(q,na=False)]
-    dff=dff.sort_values("fecha_hora",ascending=False).reset_index(drop=True)
+        q = ft.upper()
+        dff = dff[dff["nombre"].str.upper().str.contains(q, na=False) |
+                  dff["nro_id"].str.contains(q, na=False)]
+    dff = dff.sort_values("fecha_hora", ascending=False).reset_index(drop=True)
+    cols_show = ["fecha_hora","username","empresa_consultada","modulo","tipo_id","nro_id","nombre","resultado"]
+    cols_show = [c for c in cols_show if c in dff.columns]
     st.caption(f"Mostrando {len(dff)} de {len(df)} registros")
-    st.dataframe(dff,use_container_width=True,height=400)
-    st.download_button("📥 Exportar",data=a_excel(dff),file_name=f"logs_{date.today()}.xlsx",
+    st.dataframe(dff[cols_show], use_container_width=True, height=400)
+    st.download_button("📥 Exportar", data=a_excel(dff[cols_show]),
+        file_name=f"logs_{date.today()}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 def mod_stats():
     st.markdown("## 📊 Estadísticas de uso")
-    todos_logs = LOGS_DEMO + st.session_state.logs
-    df_logs = pd.DataFrame(todos_logs)
+    info = st.session_state.get("user_info", {})
+    es_super = info.get("rol") == "superadmin"
+    empresa_id = None if es_super else info.get("empresa_id")
+    rows = listar_consultas(empresa_id=empresa_id)
+    if not rows:
+        st.info("No hay registros de consultas aún."); return
+    df_logs = pd.DataFrame(rows)
     df_logs["fecha_hora"] = pd.to_datetime(df_logs["fecha_hora"], format="mixed", dayfirst=False)
 
     mes_actual = date.today().replace(day=1)
@@ -753,7 +819,7 @@ def mod_stats():
 
     total_mes  = len(df_mes)
     alertas    = int(df_logs["resultado"].apply(es_alerta).sum())
-    usuarios_a = int(df_logs["usuario"].nunique())
+    usuarios_a = int(df_logs["username"].nunique())
     masivos    = int((df_logs["modulo"] == "MASIVO").sum())
 
     c1,c2,c3,c4=st.columns(4)
@@ -779,17 +845,17 @@ def mod_stats():
     co1,co2=st.columns(2)
     with co1:
         st.markdown("#### Por usuario")
-        por_usr = (df_logs.groupby("usuario")
+        por_usr = (df_logs.groupby("username")
                    .agg(Consultas=("resultado","count"),
                         Alertas=("resultado", lambda x: x.apply(es_alerta).sum()))
-                   .reset_index().rename(columns={"usuario":"Usuario"}))
+                   .reset_index().rename(columns={"username":"Usuario"}))
         st.dataframe(por_usr, use_container_width=True, hide_index=True)
     with co2:
         st.markdown("#### Últimas 10 consultas")
         st.dataframe(
             df_logs.sort_values("fecha_hora", ascending=False)
-                   .head(10)[["fecha_hora","usuario","modulo","nombre","resultado"]]
-                   .rename(columns={"fecha_hora":"Fecha","usuario":"Usuario",
+                   .head(10)[["fecha_hora","username","modulo","nombre","resultado"]]
+                   .rename(columns={"fecha_hora":"Fecha","username":"Usuario",
                                     "modulo":"Módulo","nombre":"Nombre","resultado":"Resultado"}),
             use_container_width=True, hide_index=True)
     st.markdown("---")
@@ -797,12 +863,134 @@ def mod_stats():
         file_name=f"estadisticas_{date.today()}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
+
+def mod_empresas():
+    st.markdown("## 🏢 Gestión de Empresas")
+    empresas = listar_empresas()
+
+    with st.expander("➕ Registrar nueva empresa", expanded=False):
+        with st.form("frm_nueva_empresa", clear_on_submit=True):
+            c1, c2 = st.columns(2)
+            nom_e = c1.text_input("Nombre de la empresa *")
+            nit_e = c2.text_input("NIT")
+            ok_e = st.form_submit_button("💾 Crear empresa", type="primary")
+        if ok_e:
+            if not nom_e.strip():
+                st.warning("El nombre de la empresa es obligatorio.")
+            else:
+                crear_empresa(nom_e, nit_e)
+                st.success(f"✅ Empresa '{nom_e}' creada."); st.rerun()
+
+    st.markdown("---")
+    st.markdown(f"**{len(empresas)} empresa(s) registradas**")
+    for emp in empresas:
+        activo = bool(emp["activo"])
+        badge = "🟢" if activo else "🔴"
+        with st.expander(f"{badge} {emp['nombre']}  —  NIT: {emp['nit'] or '—'}", expanded=False):
+            c1, c2, c3 = st.columns(3)
+            c1.caption(f"ID: {emp['id']}")
+            c2.caption(f"Registrada: {emp['fecha_registro'][:10] if emp.get('fecha_registro') else '—'}")
+            lbl = "⛔ Desactivar" if activo else "✅ Activar"
+            if c3.button(lbl, key=f"tog_emp_{emp['id']}"):
+                toggle_empresa(emp["id"], not activo)
+                st.rerun()
+
+
+def mod_usuarios():
+    st.markdown("## 👥 Gestión de Usuarios")
+    empresas = listar_empresas()
+    empresas_activas = [e for e in empresas if e["activo"]]
+    emp_map = {e["nombre"]: e["id"] for e in empresas_activas}
+
+    with st.expander("➕ Crear nuevo analista", expanded=False):
+        with st.form("frm_nuevo_usuario", clear_on_submit=True):
+            c1, c2 = st.columns(2)
+            emp_sel = c1.selectbox("Empresa *", list(emp_map.keys()))
+            username_n = c2.text_input("Username *", placeholder="sin espacios")
+            c3, c4 = st.columns(2)
+            nombre_n = c3.text_input("Nombre completo *")
+            pwd_n = c4.text_input("Contraseña inicial *", type="password")
+            ok_u = st.form_submit_button("💾 Crear usuario", type="primary")
+        if ok_u:
+            if not all([emp_sel, username_n.strip(), nombre_n.strip(), pwd_n]):
+                st.warning("Completa todos los campos.")
+            else:
+                try:
+                    crear_usuario(username_n.strip(), pwd_n, nombre_n.strip(), emp_map[emp_sel])
+                    st.success(f"✅ Usuario '{username_n}' creado para {emp_sel}."); st.rerun()
+                except Exception as ex:
+                    st.error(f"Error al crear usuario: {ex}")
+
+    st.markdown("---")
+    emp_filtro_opts = ["Todas"] + [e["nombre"] for e in empresas]
+    filtro_emp = st.selectbox("Filtrar por empresa", emp_filtro_opts)
+    emp_id_filtro = None if filtro_emp == "Todas" else next(
+        (e["id"] for e in empresas if e["nombre"] == filtro_emp), None)
+    usuarios = listar_usuarios(empresa_id=emp_id_filtro)
+
+    st.markdown(f"**{len(usuarios)} usuario(s)**")
+    for u in usuarios:
+        activo = bool(u["activo"])
+        badge = "🟢" if activo else "🔴"
+        rol_label = "Superadmin" if u["rol"] == "superadmin" else "Analista"
+        with st.expander(f"{badge} {u['nombre']}  ({u['username']})  —  {u.get('empresa_nombre','—')}  |  {rol_label}", expanded=False):
+            c1, c2, c3 = st.columns(3)
+            c1.caption(f"Creado: {u['fecha_creacion'][:10] if u.get('fecha_creacion') else '—'}")
+            lbl = "⛔ Desactivar" if activo else "✅ Activar"
+            if u["rol"] != "superadmin":
+                if c2.button(lbl, key=f"tog_usr_{u['id']}"):
+                    toggle_usuario(u["id"], not activo)
+                    st.rerun()
+            with c3.expander("🔑 Reset contraseña"):
+                with st.form(f"frm_reset_{u['id']}", clear_on_submit=True):
+                    nueva_pwd = st.text_input("Nueva contraseña", type="password", key=f"npwd_{u['id']}")
+                    if st.form_submit_button("Cambiar"):
+                        if nueva_pwd:
+                            reset_password(u["id"], nueva_pwd)
+                            st.success("Contraseña actualizada.")
+
+def mod_perfil():
+    st.markdown("## 🔑 Mi perfil")
+    info = st.session_state.get("user_info", {})
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Usuario", info.get("username", st.session_state.user))
+    c2.metric("Nombre", info.get("nombre", "—"))
+    c3.metric("Empresa", info.get("empresa_nombre", "—"))
+    st.markdown("---")
+    st.markdown("### Cambiar contraseña")
+
+    with st.form("frm_cambiar_pwd", clear_on_submit=True):
+        pwd_actual  = st.text_input("Contraseña actual", type="password")
+        pwd_nueva   = st.text_input("Nueva contraseña", type="password")
+        pwd_confirm = st.text_input("Confirmar nueva contraseña", type="password")
+        ok = st.form_submit_button("💾 Cambiar contraseña", type="primary")
+
+    if ok:
+        if not pwd_actual or not pwd_nueva or not pwd_confirm:
+            st.warning("Completa todos los campos.")
+        elif pwd_nueva != pwd_confirm:
+            st.error("La nueva contraseña y la confirmación no coinciden.")
+        elif len(pwd_nueva) < 6:
+            st.error("La contraseña debe tener al menos 6 caracteres.")
+        else:
+            verificado = verificar_usuario(st.session_state.user, pwd_actual)
+            if not verificado:
+                st.error("La contraseña actual es incorrecta.")
+            else:
+                reset_password(info["id"], pwd_nueva)
+                st.success("✅ Contraseña actualizada correctamente.")
+
+
 if not st.session_state.logged_in:
     pantalla_login()
 else:
     sidebar()
-    m=st.session_state.menu
-    if   "Unificada"    in m: mod_unificada()
-    elif "Otras"        in m: mod_otras_fuentes()
-    elif "Registros"    in m: mod_logs()
+    m = st.session_state.menu
+    if   "Unificada"                       in m: mod_unificada()
+    elif "Otras"                           in m: mod_otras_fuentes()
+    elif "Registros"                       in m: mod_logs()
     elif "Estadisticas" in m or "Estadísticas" in m: mod_stats()
+    elif "Empresas"                        in m: mod_empresas()
+    elif "Usuarios"                        in m: mod_usuarios()
+    elif "perfil"    in m or "Perfil"      in m: mod_perfil()

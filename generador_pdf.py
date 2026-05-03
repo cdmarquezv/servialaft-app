@@ -23,11 +23,11 @@ except ImportError:
     _QR_OK = False
 
 # ─── Paleta corporativa ───────────────────────────────────────────────────────
-AZUL_OSCURO  = colors.HexColor("#0F1B2D")
-AZUL_MED     = colors.HexColor("#1E3A5F")
-AZUL_CLARO   = colors.HexColor("#2563EB")
-GRIS_TEXTO   = colors.HexColor("#374151")
-GRIS_SUAVE   = colors.HexColor("#F3F4F6")
+AZUL_OSCURO  = colors.HexColor("#0F3D3A")
+AZUL_MED     = colors.HexColor("#066A79")
+AZUL_CLARO   = colors.HexColor("#41BDB2")
+GRIS_TEXTO   = colors.HexColor("#51535B")
+GRIS_SUAVE   = colors.HexColor("#F2F5F1")
 GRIS_BORDE   = colors.HexColor("#D1D5DB")
 VERDE        = colors.HexColor("#065F46")
 VERDE_BG     = colors.HexColor("#D1FAE5")
@@ -60,11 +60,11 @@ def get_styles():
     return {
         "titulo": ParagraphStyle(
             "titulo", fontSize=18, fontName="Helvetica-Bold",
-            textColor=AZUL_OSCURO, alignment=TA_CENTER, spaceAfter=2
+            textColor=AZUL_OSCURO, alignment=TA_CENTER, spaceAfter=8
         ),
         "subtitulo": ParagraphStyle(
-            "subtitulo", fontSize=10, fontName="Helvetica",
-            textColor=GRIS_TEXTO, alignment=TA_CENTER, spaceAfter=4
+            "subtitulo", fontSize=9.5, fontName="Helvetica",
+            textColor=GRIS_TEXTO, alignment=TA_CENTER, spaceAfter=10, leading=15
         ),
         "seccion": ParagraphStyle(
             "seccion", fontSize=11, fontName="Helvetica-Bold",
@@ -139,7 +139,7 @@ def make_header_footer(watermark=False):
         canvas.setFont("Helvetica", 7)
         canvas.setFillColor(colors.HexColor("#93C5FD"))
         canvas.drawCentredString(W / 2, 22,
-            "SERVIALAFT SAS  ·  NIT: 900.XXX.XXX-X  ·  Colombia")
+            "SERVIALAFT SAS  ·  NIT: 901.475.340-1  ·  Colombia")
         canvas.drawCentredString(W / 2, 12,
             "Este documento es generado automáticamente y tiene validez como certificado de consulta.")
 
@@ -163,12 +163,25 @@ def make_header_footer(watermark=False):
 
 # ─── Tabla de datos del consultado ───────────────────────────────────────────
 def tabla_consultado(tipo_id, nro_id, nombre, usuario, modulo):
+    _th = ParagraphStyle("dth", fontSize=8, fontName="Helvetica-Bold",
+                         textColor=BLANCO, leading=11)
+    _td = ParagraphStyle("dtd", fontSize=8.5, fontName="Helvetica-Bold",
+                         textColor=AZUL_OSCURO, leading=12)
+    _tn = ParagraphStyle("dtn", fontSize=8, fontName="Helvetica",
+                         textColor=GRIS_TEXTO, leading=11)
     data = [
-        ["TIPO ID", "NÚMERO DE IDENTIFICACIÓN", "NOMBRE COMPLETO"],
-        [tipo_id,   nro_id,                      nombre.upper()],
-        ["MÓDULO DE CONSULTA", "USUARIO CONSULTOR", "FECHA Y HORA"],
-        [modulo,    usuario,
-         datetime.now().strftime("%d/%m/%Y %H:%M:%S")],
+        [Paragraph("TIPO ID", _th),
+         Paragraph("NÚMERO DE IDENTIFICACIÓN", _th),
+         Paragraph("NOMBRE COMPLETO", _th)],
+        [Paragraph(tipo_id, _td),
+         Paragraph(nro_id, _td),
+         Paragraph(nombre.upper(), _td)],
+        [Paragraph("MÓDULO DE CONSULTA", _th),
+         Paragraph("USUARIO CONSULTOR", _th),
+         Paragraph("FECHA Y HORA", _th)],
+        [Paragraph(modulo, _tn),
+         Paragraph(usuario, _tn),
+         Paragraph(datetime.now().strftime("%d/%m/%Y %H:%M:%S"), _tn)],
     ]
     t = Table(data, colWidths=[100, 180, 236])
     t.setStyle(TableStyle([
@@ -200,44 +213,59 @@ def tabla_consultado(tipo_id, nro_id, nombre, usuario, modulo):
 
 # ─── Tabla de coincidencias ───────────────────────────────────────────────────
 def tabla_coincidencias(df_res):
-    cols_show = []
-    headers   = []
-    for c, h in [("origen","LISTA"), ("nro_id","NÚMERO ID"),
-                 ("nombre","NOMBRE EN LISTA"), ("nivel","NIVEL"),
-                 ("sim_%","SIMILITUD"), ("detalle","DETALLE")]:
-        if c in df_res.columns:
-            cols_show.append(c); headers.append(h)
+    # Estilos de celda
+    _th = ParagraphStyle("cth", fontSize=7.5, fontName="Helvetica-Bold",
+                         textColor=BLANCO, leading=10, alignment=TA_CENTER)
+    _tc = ParagraphStyle("ctc", fontSize=7.5, fontName="Helvetica",
+                         textColor=GRIS_TEXTO, leading=10)
+    _tc_c = ParagraphStyle("ctcc", fontSize=7.5, fontName="Helvetica",
+                           textColor=GRIS_TEXTO, leading=10, alignment=TA_CENTER)
+    _tc_b = ParagraphStyle("ctcb", fontSize=7.5, fontName="Helvetica-Bold",
+                           textColor=AZUL_OSCURO, leading=10)
 
-    data = [headers]
+    # Columnas a mostrar con anchos fijos (total = 516 pts)
+    COL_CFG = [
+        ("origen",  "LISTA",            68,  _tc_b),
+        ("nro_id",  "NÚMERO ID",        68,  _tc_c),
+        ("nombre",  "NOMBRE EN LISTA",  130, _tc),
+        ("nivel",   "NIVEL",            62,  _tc_c),
+        ("sim_%",   "SIM%",             36,  _tc_c),
+        ("detalle", "DETALLE",          152, _tc),
+    ]
+    cols_show = [(c, h, w, st) for c, h, w, st in COL_CFG if c in df_res.columns]
+
+    headers = [Paragraph(h, _th) for _, h, _, _ in cols_show]
+    col_ws  = [w for _, _, w, _ in cols_show]
+    data    = [headers]
+    niveles = []
+
     for _, row in df_res.iterrows():
         fila = []
-        for c in cols_show:
+        for c, _, _, st in cols_show:
             val = row.get(c, "—")
-            fila.append("—" if str(val) in ("nan","None","") else str(val))
+            txt = "—" if str(val) in ("nan", "None", "") else str(val)
+            # Truncar DETALLE si es extremadamente largo
+            if c == "detalle" and len(txt) > 180:
+                txt = txt[:177] + "…"
+            fila.append(Paragraph(txt, st))
         data.append(fila)
+        niveles.append(str(row.get("nivel", "")))
 
-    n = len(cols_show)
-    col_w = 516 / n
-    t = Table(data, colWidths=[col_w] * n, repeatRows=1)
+    t = Table(data, colWidths=col_ws, repeatRows=1)
 
     style = [
         ("BACKGROUND",    (0, 0), (-1, 0),  AZUL_OSCURO),
-        ("TEXTCOLOR",     (0, 0), (-1, 0),  BLANCO),
-        ("FONTNAME",      (0, 0), (-1, 0),  "Helvetica-Bold"),
-        ("FONTSIZE",      (0, 0), (-1, -1), 7.5),
         ("GRID",          (0, 0), (-1, -1), 0.4, GRIS_BORDE),
         ("TOPPADDING",    (0, 0), (-1, -1), 5),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 6),
-        ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
-        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 5),
+        ("VALIGN",        (0, 0), (-1, -1), "TOP"),
     ]
-    for i in range(1, len(data)):
-        nivel = str(data[i][cols_show.index("nivel")] if "nivel" in cols_show else "")
-        bg = (ROJO_BG if nivel == "EXACTA"
-              else AMARILLO_BG if nivel in ("APROXIMADA","SOLO NOMBRE")
-              else BLANCO)
+    for i, nivel in enumerate(niveles, start=1):
+        bg = (ROJO_BG    if nivel == "EXACTA"
+              else AMARILLO_BG if nivel in ("APROXIMADA", "SOLO NOMBRE")
+              else GRIS_SUAVE  if i % 2 == 0 else BLANCO)
         style.append(("BACKGROUND", (0, i), (-1, i), bg))
 
     t.setStyle(TableStyle(style))
@@ -483,14 +511,11 @@ def generar_pdf_individual(tipo_id, nro_id, nombre, df_resultado,
     story = []
     sec = 1  # contador de secciones
 
-    # ── Folio ──────────────────────────────────────────────────────────────
-    story.append(Paragraph(f"Folio: <b>{folio}</b>", S["folio"]))
-    story.append(Spacer(1, 14))
-
     # ── Título ─────────────────────────────────────────────────────────────
+    story.append(Spacer(1, 8))
     story.append(Paragraph("CERTIFICADO DE CONSULTA DE LISTAS VINCULANTES", S["titulo"]))
     story.append(Paragraph(
-        "CruzaListas · OFAC SDN · Terroristas EE.UU. · ONU · Sanciones UE · PEPs Colombia · Noticias Adversas",
+        "CruzaListas  ·  OFAC SDN  ·  Terroristas EE.UU.  ·  ONU  ·  Sanciones UE  ·  PEPs Colombia  ·  Noticias Adversas",
         S["subtitulo"]))
     story.append(HRFlowable(width="100%", thickness=1.5, color=AZUL_OSCURO, spaceAfter=10))
 
@@ -567,8 +592,7 @@ def generar_pdf_manual(tipo_id, nro_id, nombre, modulo, resultado,
     es_positivo = "CON" in resultado.upper()
 
     story = []
-    story.append(Paragraph(f"Folio: <b>{folio}</b>", S["folio"]))
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 8))
     story.append(Paragraph(f"CERTIFICADO DE CONSULTA — {modulo.upper()}", S["titulo"]))
     story.append(Paragraph("Consulta manual registrada en el sistema SERVIALAFT SAS", S["subtitulo"]))
     story.append(HRFlowable(width="100%", thickness=1.5, color=AZUL_OSCURO, spaceAfter=10))
@@ -637,10 +661,9 @@ def generar_pdf_masivo(df_resultados, umbral, usuario="sistema", folio=None,
     limpios    = total - encontrados
 
     story = []
-    story.append(Paragraph(f"Folio: <b>{folio}</b>", S["folio"]))
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 8))
     story.append(Paragraph("REPORTE EJECUTIVO — CONSULTA MASIVA DE LISTAS VINCULANTES", S["titulo"]))
-    story.append(Paragraph("OFAC SDN · Resoluciones ONU · PEPs Colombia", S["subtitulo"]))
+    story.append(Paragraph("OFAC SDN  ·  Resoluciones ONU  ·  PEPs Colombia", S["subtitulo"]))
     story.append(HRFlowable(width="100%", thickness=1.5, color=AZUL_OSCURO, spaceAfter=10))
 
     # Parámetros de la consulta

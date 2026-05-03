@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*.pyo
+*.db
+*.xlsx
+*.log
+*.pdf
+.env
+listas_cache/
