@@ -121,11 +121,24 @@ def make_header_footer(watermark=False):
         canvas.setLineWidth(2)
         canvas.line(0, H - BAND, W, H - BAND)
 
+        # Logo (si existe el archivo)
+        import os as _os_hf
+        logo_path = "logo_servialaft.png"
+        if _os_hf.path.exists(logo_path):
+            try:
+                canvas.drawImage(logo_path, 28, H - BAND + 8, width=80, height=48,
+                                 preserveAspectRatio=True, mask="auto")
+            except Exception:
+                canvas.setFillColor(BLANCO)
+                canvas.setFont("Helvetica-Bold", 16)
+                canvas.drawString(32, H - 30, "SERVIALAFT SAS")
+        else:
+            canvas.setFillColor(BLANCO)
+            canvas.setFont("Helvetica-Bold", 16)
+            canvas.drawString(32, H - 30, "SERVIALAFT SAS")
         canvas.setFillColor(BLANCO)
-        canvas.setFont("Helvetica-Bold", 16)
-        canvas.drawString(32, H - 30, "SERVIALAFT SAS")
         canvas.setFont("Helvetica", 9)
-        canvas.drawString(32, H - 46, "Sistema de Consulta de Listas Vinculantes · CruzaListas")
+        canvas.drawString(120, H - 38, "Sistema de Consulta de Listas Vinculantes · CruzaListas")
 
         canvas.setFont("Helvetica", 8.5)
         canvas.setFillColor(colors.HexColor("#93C5FD"))
@@ -139,7 +152,7 @@ def make_header_footer(watermark=False):
         canvas.setFont("Helvetica", 7)
         canvas.setFillColor(colors.HexColor("#93C5FD"))
         canvas.drawCentredString(W / 2, 22,
-            "SERVIALAFT SAS  ·  NIT: 901.475.340-1  ·  Colombia")
+            "SERVIALAFT SAS  ·  NIT: 901.475.340-6  ·  servicios@servialaft.co  ·  Colombia")
         canvas.drawCentredString(W / 2, 12,
             "Este documento es generado automáticamente y tiene validez como certificado de consulta.")
 
@@ -227,10 +240,9 @@ def tabla_coincidencias(df_res):
     COL_CFG = [
         ("origen",  "LISTA",            68,  _tc_b),
         ("nro_id",  "NÚMERO ID",        68,  _tc_c),
-        ("nombre",  "NOMBRE EN LISTA",  130, _tc),
-        ("nivel",   "NIVEL",            62,  _tc_c),
-        ("sim_%",   "SIM%",             36,  _tc_c),
-        ("detalle", "DETALLE",          152, _tc),
+        ("nombre",  "NOMBRE EN LISTA",  135, _tc),
+        ("nivel",   "NIVEL",            65,  _tc_c),
+        ("detalle", "DETALLE",          180, _tc),
     ]
     cols_show = [(c, h, w, st) for c, h, w, st in COL_CFG if c in df_res.columns]
 
@@ -720,9 +732,9 @@ def generar_pdf_masivo(df_resultados, umbral, usuario="sistema", folio=None,
     # Detalle completo
     story.append(Paragraph("3. DETALLE DE REGISTROS CONSULTADOS", S["seccion"]))
 
-    cols_det = ["tipo_id","nro_id","nombre","resultado","origen","nivel","sim_%"]
-    headers_det = ["TIPO","NÚMERO","NOMBRE","RESULTADO","LISTA","NIVEL","SIM%"]
-    widths_det  = [38, 70, 150, 80, 60, 60, 35]
+    cols_det = ["tipo_id","nro_id","nombre","resultado","origen","nivel"]
+    headers_det = ["TIPO","NÚMERO","NOMBRE","RESULTADO","LISTA","NIVEL"]
+    widths_det  = [38, 75, 165, 95, 72, 71]
 
     filas_det = [headers_det]
     for _, row in df_resultados.iterrows():

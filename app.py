@@ -104,7 +104,7 @@ st.markdown("""
     🛡️ <b>CruzaListas</b> &nbsp;·&nbsp;
     Desarrollado y operado por <b>SERVIALAFT SAS</b> &nbsp;·&nbsp;
     Todos los derechos reservados © 2025 &nbsp;·&nbsp;
-    <a href="mailto:contacto@servialaft.com">contacto@servialaft.com</a>
+    <a href="mailto:servicios@servialaft.co">servicios@servialaft.co</a>
 </div>
 """, unsafe_allow_html=True)
 
@@ -165,39 +165,49 @@ def norm(s):
     return "".join(c for c in unicodedata.normalize("NFD",s) if unicodedata.category(c)!="Mn").upper().strip()
 
 def buscar(tipo_id, nro_id, nombre, umbral):
-    res=[]; nombre_n=norm(nombre)
-    solo_doc=bool(nro_id) and not nombre
-    solo_nombre=bool(nombre) and not nro_id
-    for _,row in TODAS.iterrows():
-        tiene_doc=(str(row.get("nro_id","N/A")) not in ("N/A","") and str(row.get("tipo_id","N/A"))!="N/A")
-        sim=0.0; nivel=""
-        if solo_doc:
-            if not tiene_doc: continue
-            if row["tipo_id"]!=tipo_id: continue
-            if str(row["nro_id"])==str(nro_id): nivel="EXACTA"
-            elif fuzz.ratio(str(row["nro_id"]),str(nro_id))>=85: nivel="APROXIMADA"
+    nombre_n = norm(nombre)
+    td = bool(nro_id)
+    tn = bool(nombre)
+    nivel_prio = {"EXACTA": 0, "APROXIMADA": 1, "SOLO NOMBRE": 2}
+    seen = {}
+
+    for _, row in TODAS.iterrows():
+        tiene_doc = (str(row.get("nro_id", "N/A")) not in ("N/A", "") and
+                     str(row.get("tipo_id", "N/A")) != "N/A")
+        sim = 0.0; nivel = ""
+
+        if td and not tn:
+            if not tiene_doc or row["tipo_id"] != tipo_id: continue
+            if str(row["nro_id"]) == str(nro_id):   nivel, sim = "EXACTA",     1.0
+            elif fuzz.ratio(str(row["nro_id"]), str(nro_id)) >= 85: nivel, sim = "APROXIMADA", 1.0
             else: continue
-            sim=100.0
-        elif solo_nombre:
-            sim=fuzz.token_sort_ratio(norm(str(row["nombre"])),nombre_n)/100
-            if sim<umbral: continue
-            nivel="SOLO NOMBRE"
+
+        elif tn and not td:
+            sim = fuzz.token_sort_ratio(norm(str(row["nombre"])), nombre_n) / 100
+            if sim < umbral: continue
+            nivel = "SOLO NOMBRE"
+
         else:
-            sim=fuzz.token_sort_ratio(norm(str(row["nombre"])),nombre_n)/100
-            de=dc=False
-            if tiene_doc and row["tipo_id"]==tipo_id:
-                de=str(row["nro_id"])==str(nro_id)
-                dc=fuzz.ratio(str(row["nro_id"]),str(nro_id))>=85
-            if de and sim>=umbral: nivel="EXACTA"
-            elif dc and sim>=umbral: nivel="APROXIMADA"
-            elif sim>=umbral: nivel="SOLO NOMBRE"
-            else: continue
-        r=row.to_dict(); r["sim_%"]=round(sim*100,1) if sim<=1 else round(sim,1); r["nivel"]=nivel
-        res.append(r)
-    seen=set(); out=[]
-    for r in res:
-        k=(r["nombre"],r["origen"])
-        if k not in seen: seen.add(k); out.append(r)
+            # Ambos campos: buscar por documento Y por nombre de forma independiente
+            sim_n = fuzz.token_sort_ratio(norm(str(row["nombre"])), nombre_n) / 100
+            doc_exact = doc_approx = False
+            if tiene_doc and row["tipo_id"] == tipo_id:
+                doc_exact  = str(row["nro_id"]) == str(nro_id)
+                doc_approx = not doc_exact and fuzz.ratio(str(row["nro_id"]), str(nro_id)) >= 85
+            name_match = sim_n >= umbral
+            if not doc_exact and not doc_approx and not name_match: continue
+            if   doc_exact:   nivel, sim = "EXACTA",      1.0
+            elif doc_approx:  nivel, sim = "APROXIMADA",  1.0
+            else:             nivel, sim = "SOLO NOMBRE", sim_n
+
+        r = row.to_dict()
+        r["sim_%"] = round(sim * 100, 1) if sim <= 1 else round(sim, 1)
+        r["nivel"] = nivel
+        k = (r["nombre"], r["origen"])
+        if k not in seen or nivel_prio.get(nivel, 99) < nivel_prio.get(seen[k]["nivel"], 99):
+            seen[k] = r
+
+    out = list(seen.values())
     return pd.DataFrame(out) if out else pd.DataFrame()
 
 def log_q(modulo, tipo_id, nro_id, nombre, resultado, empresa_consultada=""):
@@ -430,7 +440,10 @@ def sidebar():
     menu_items = MENU_SUPER if es_super else MENU_ANALISTA
 
     with st.sidebar:
-        st.markdown("### 🛡️ CruzaListas")
+        if _os.path.exists("logo_servialaft.png"):
+            st.image("logo_servialaft.png", use_container_width=True)
+        else:
+            st.markdown("### 🛡️ CruzaListas")
         st.caption("por SERVIALAFT SAS")
         st.markdown("---")
         st.markdown(f"**{info.get('nombre', st.session_state.user)}**")
@@ -502,9 +515,11 @@ def mod_unificada():
                         for _,row in df.iterrows():
                             e="🔴" if row["nivel"]=="EXACTA" else "🟡"
                             with st.expander(f"{e} {row['nombre']}  —  {row['origen']}",expanded=True):
-                                cc1,cc2,cc3=st.columns(3)
-                                cc1.metric("Lista",row["origen"]); cc2.metric("SimiliScore™",f"{row['sim_%']}%"); cc3.metric("Nivel",row["nivel"])
-                                if row.get("detalle"): st.write(f"**Detalle:** {row['detalle']}")
+                                cc1,cc2=st.columns(2)
+                                nivel_label = {"EXACTA":"🔴 Exacta","APROXIMADA":"🟡 Aproximada","SOLO NOMBRE":"🟡 Por nombre"}.get(row["nivel"], row["nivel"])
+                                cc1.markdown(f"<small><b>Lista:</b> {row['origen']}</small>", unsafe_allow_html=True)
+                                cc2.markdown(f"<small><b>Coincidencia:</b> {nivel_label}</small>", unsafe_allow_html=True)
+                                if row.get("detalle"): st.markdown(f"<small><b>Detalle:</b> {row['detalle']}</small>", unsafe_allow_html=True)
                     if tn:
                         st.markdown("---")
                         # Guardar noticias en session para pasarlas al PDF
@@ -521,7 +536,8 @@ def mod_unificada():
                     cx, cy = st.columns(2)
                     de = df if not df.empty else pd.DataFrame({
                         "tipo_id":[tipo_id],"nro_id":[il],"nombre":[nl],"resultado":["SIN COINCIDENCIA"]})
-                    cx.download_button("📥 Excel", data=a_excel(de),
+                    de_xl = de.drop(columns=["sim_%"], errors="ignore")
+                    cx.download_button("📥 Excel", data=a_excel(de_xl),
                         file_name=f"consulta_{il}_{date.today()}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True)
@@ -593,7 +609,7 @@ def mod_unificada():
                     co1.metric("Total",len(di)); co2.metric("🚨 Con coincidencia",enc); co3.metric("✅ Sin coincidencia",len(di)-enc)
                     st.dataframe(do,use_container_width=True,height=280)
                     bx,by=st.columns(2)
-                    bx.download_button("📥 Excel",data=a_excel(do),file_name=f"masivo_{date.today()}.xlsx",
+                    bx.download_button("📥 Excel",data=a_excel(do.drop(columns=["sim_%"],errors="ignore")),file_name=f"masivo_{date.today()}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",use_container_width=True)
                     if PDF_DISPONIBLE:
                         pm=generar_pdf_masivo(do,umbral_m/100,usuario=st.session_state.user,watermark=not LISTAS_REALES)
